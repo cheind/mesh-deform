@@ -33,7 +33,7 @@ namespace deform {
         Mesh *mesh;
         EdgeWeightProperty weights;
         VertexBoolProperty isConstrained;
-        VertexPointProperty meshPoints;
+        VertexPointProperty meshPoints; // target
 
         Eigen::Matrix3Xf points;
         std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f> > rotations;
@@ -71,8 +71,7 @@ namespace deform {
         bool isc = _data->mesh->property(_data->isConstrained, v);
         _data->dirty |= !isc;
         _data->mesh->property(_data->isConstrained, v) = true;
-        _data->mesh->property(_data->)
-        _data->points[1].col(v.idx()) = toEigen(pos);
+        _data->mesh->property(_data->meshPoints, v) = pos;
     }
 
     void AsRigidAsPossibleDeform::deform(size_t nIterations)
@@ -101,6 +100,8 @@ namespace deform {
             // Estimate positions
             estimatePositions();
         }
+
+        restorePositions();
     }
 
     void AsRigidAsPossibleDeform::copyPositions()
@@ -112,6 +113,17 @@ namespace deform {
 
         for (size_t i = 0; i < m->n_vertices(); ++i) {
             points.col(i) = toEigen(m->point(Mesh::VertexHandle(static_cast<int>(i))));
+        }
+    }
+
+    void AsRigidAsPossibleDeform::restorePositions()
+    {
+        Mesh *m = _data->mesh;
+
+        Eigen::Matrix3Xf &points = _data->points;
+
+        for (size_t i = 0; i < m->n_vertices(); ++i) {
+            m->point(Mesh::VertexHandle(static_cast<int>(i))) = toMesh(points.col(i));
         }
     }
 
@@ -179,7 +191,8 @@ namespace deform {
                 cot_beta = v0.dot(v1) / (1e-6f * v0.cross(v1).norm());
             }
 
-            m.property(w, *eiter) = (cot_alpha + cot_beta) * 0.5f;
+            //m.property(w, *eiter) = (cot_alpha + cot_beta) * 0.5f;
+            m.property(w, *eiter) = 1.0f;
         }        
 
     }
@@ -188,8 +201,8 @@ namespace deform {
     {
         Mesh &m = *_data->mesh;
         for (auto viter = m.vertices_begin(); viter != m.vertices_end(); ++viter) {
-            const Eigen::Vector3f &vi = _data->points[0].col(viter->idx());
-            const Eigen::Vector3f &vip = _data->points[1].col(viter->idx());
+            const Eigen::Vector3f vi = toEigen(m.point(viter.handle()));
+            const Eigen::Vector3f vip = _data->points.col(viter->idx());
 
             Eigen::Matrix3f cov = Eigen::Matrix3f::Zero();
 
@@ -198,10 +211,10 @@ namespace deform {
                 Mesh::EdgeHandle eh = m.edge_handle(heh);
                 float w = m.property(_data->weights, eh);
 
-                const Eigen::Vector3f &vj = _data->points[0].col(vv->idx());
-                const Eigen::Vector3f &vjp = _data->points[1].col(vv->idx());
+                const Eigen::Vector3f vj = toEigen(m.point(vv.handle()));
+                const Eigen::Vector3f &vjp = _data->points.col(vv->idx());
 
-                cov += (vi - vj) * (vip - vjp).transpose() * w;
+                cov += w * (vi - vj) * ((vip - vjp).transpose());
             }
 
             Eigen::JacobiSVD<Eigen::Matrix3f> svd(cov, Eigen::ComputeThinU | Eigen::ComputeThinV); 
@@ -210,7 +223,8 @@ namespace deform {
             
             Eigen::Matrix3f id = Eigen::Matrix3f::Identity(3, 3);
             id(2, 2) = (v * ut).determinant();
-            _data->rotations[viter->idx()] = (v * id * ut); // accounts for required flip
+            _data->rotations[viter->idx()] = (v * id * ut); // accounts for required flip  
+            std::cout << _data->rotations[viter->idx()] << std::endl;
         }
     }
 
@@ -220,7 +234,7 @@ namespace deform {
         
         // Solve Lp' = b
         for (size_t i = 0; i < 3; ++i) {
-            _data->points[0].row(i) = _data->solver.solve(_data->b.col(i)).transpose();
+            _data->points.row(i) = _data->solver.solve(_data->b.col(i)).transpose();
         }        
     }
 
@@ -253,7 +267,9 @@ namespace deform {
 
         }
 
-        _data->L.setZero();
+
+        _data->L.resize(m.n_vertices(), m.n_vertices());
+        _data->L.setZero();        
         _data->L.setFromTriplets(triplets.begin(), triplets.end());
 
         _data->solver.analyzePattern(_data->L);
@@ -271,7 +287,7 @@ namespace deform {
 
             if (m.property(_data->isConstrained, *viter)) {
                 // If this vertex is constraint we enforce lhs = rhs
-                _data->b.row(i) = _data->points[1].col(i).transpose();
+                _data->b.row(i) = toEigen(m.point(viter.handle())).transpose();
             }
             else {
                 // else w/2 * (Ri+Rj) * (pi - pj)
@@ -284,7 +300,9 @@ namespace deform {
                     Mesh::EdgeHandle eh = m.edge_handle(heh);
                     float w = m.property(_data->weights, eh);
 
-                    sum += 0.5f * w * (_data->rotations[i] + _data->rotations[j]) * (_data->points[0].col(i) - _data->points[0].col(j));
+                    Eigen::Vector3f t = (_data->rotations[i] + _data->rotations[j]) * (toEigen(m.point(viter.handle())) - toEigen(m.point(vv.handle())));
+
+                    sum += 0.5f * w * t;
                 }
                 _data->b.row(i) = sum.transpose();
             }

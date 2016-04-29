@@ -29,6 +29,7 @@ namespace deform {
     private:
 
         void copyPositions();
+        void restorePositions();
         void attachMeshProperties();
         void releaseMeshProperties();
         void computeEdgeWeights();
