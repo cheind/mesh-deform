@@ -11,13 +11,35 @@
 #ifndef DEFORM_ARAP_H
 #define DEFORM_ARAP_H
 
-#include <Eigen/Core>
+#include <deform/mesh.h>
+#include <memory>
 
 namespace deform {
     
     class AsRigidAsPossibleDeform {
     public:
+        AsRigidAsPossibleDeform(Mesh * mesh);
+        ~AsRigidAsPossibleDeform();
+        AsRigidAsPossibleDeform(const AsRigidAsPossibleDeform &other) = delete;
+        AsRigidAsPossibleDeform &operator=(const AsRigidAsPossibleDeform &other) = delete;
+
+        void setConstraint(Mesh::VertexHandle v, const Mesh::Point &pos);
+        void deform(size_t nIterations);
+
     private:
+
+        void copyPositions();
+        void attachMeshProperties();
+        void releaseMeshProperties();
+        void computeEdgeWeights();
+        void estimateRotations();
+        void estimatePositions();
+        void computeL();
+        void computeB();
+
+
+        struct data;
+        std::unique_ptr<data> _data;
     };
 
 }

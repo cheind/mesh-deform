@@ -19,6 +19,7 @@ include_directories("inc" ${OPENMESH_INCLUDE_DIR} ${DEFORM_EIGEN_DIR})
 list(APPEND DEFORM_LINK_TARGETS ${OPENMESH_LIBRARIES})
 
 add_library(deform
+    inc/deform/mesh.h
     inc/deform/arap.h
     src/arap.cpp
 )
