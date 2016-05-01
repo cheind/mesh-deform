@@ -9,10 +9,12 @@
  */
 
 #include <deform/arap.h>
+#include <deform/cotan_matrix.h>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/StdVector>
+#include <iostream>
 
 namespace deform {
 
@@ -25,13 +27,11 @@ namespace deform {
     }
 
     typedef Mesh::Scalar Scalar;
-    typedef OpenMesh::EPropHandleT<Mesh::Scalar> EdgeWeightProperty;
     typedef OpenMesh::VPropHandleT<bool> VertexBoolProperty;
     typedef OpenMesh::VPropHandleT<Mesh::Point> VertexPointProperty;
 
-    struct AsRigidAsPossibleDeform::data {
+    struct AsRigidAsPossibleDeformation::data {
         Mesh *mesh;
-        EdgeWeightProperty weights;
         VertexBoolProperty isConstrained;
         VertexPointProperty meshPoints; // target
 
@@ -47,7 +47,7 @@ namespace deform {
         {}
     };
 
-    AsRigidAsPossibleDeform::AsRigidAsPossibleDeform(Mesh *mesh)
+    AsRigidAsPossibleDeformation::AsRigidAsPossibleDeformation(Mesh *mesh)
         :_data(new data())
     {
         if (!mesh) {
@@ -56,17 +56,16 @@ namespace deform {
 
         _data->mesh = mesh;
         attachMeshProperties();
-        copyPositions();        
-        computeEdgeWeights();
+        copyPositions();
     }
 
    
-    AsRigidAsPossibleDeform::~AsRigidAsPossibleDeform()
+    AsRigidAsPossibleDeformation::~AsRigidAsPossibleDeformation()
     {
         releaseMeshProperties();
     }
    
-    void AsRigidAsPossibleDeform::setConstraint(Mesh::VertexHandle v, const Mesh::Point & pos)
+    void AsRigidAsPossibleDeformation::setConstraint(Mesh::VertexHandle v, const Mesh::Point & pos)
     {
         bool isc = _data->mesh->property(_data->isConstrained, v);
         _data->dirty |= !isc;
@@ -74,7 +73,7 @@ namespace deform {
         _data->mesh->property(_data->meshPoints, v) = pos;
     }
 
-    void AsRigidAsPossibleDeform::deform(size_t nIterations)
+    void AsRigidAsPossibleDeformation::deform(size_t nIterations)
     {
         if (_data->dirty) {
             const size_t nv = _data->mesh->n_vertices();
@@ -104,7 +103,7 @@ namespace deform {
         restorePositions();
     }
 
-    void AsRigidAsPossibleDeform::copyPositions()
+    void AsRigidAsPossibleDeformation::copyPositions()
     {
         Mesh *m = _data->mesh;
 
@@ -116,7 +115,7 @@ namespace deform {
         }
     }
 
-    void AsRigidAsPossibleDeform::restorePositions()
+    void AsRigidAsPossibleDeformation::restorePositions()
     {
         Mesh *m = _data->mesh;
 
@@ -127,13 +126,9 @@ namespace deform {
         }
     }
 
-    void AsRigidAsPossibleDeform::attachMeshProperties()
+    void AsRigidAsPossibleDeformation::attachMeshProperties()
     {
         Mesh *m = _data->mesh;
-
-        EdgeWeightProperty &w = _data->weights;
-        m->add_property(w);
-        std::fill(m->property(w).data_vector().begin(), m->property(w).data_vector().end(), Scalar(1.f));
 
         VertexBoolProperty &vc = _data->isConstrained;
         m->add_property(vc);
@@ -142,93 +137,46 @@ namespace deform {
         _data->meshPoints = m->points_pph();
     }
 
-    void AsRigidAsPossibleDeform::releaseMeshProperties()
+    void AsRigidAsPossibleDeformation::releaseMeshProperties()
     {
         Mesh *m = _data->mesh;
         if (!m)
             return;
 
-        m->remove_property(_data->weights);
         m->remove_property(_data->isConstrained);
     }
 
-    void AsRigidAsPossibleDeform::computeEdgeWeights()
-    {
-        Mesh &m = *_data->mesh;
-        Eigen::Matrix3Xf &pos = _data->points;
-        EdgeWeightProperty &w = _data->weights;
-
-        // Compute cotangent weights for each edge.
-        for (auto eiter = m.edges_begin(); eiter != m.edges_end(); ++eiter) {
-            
-            float cot_alpha = 0.f;
-            float cot_beta = 0.f;
-
-            Mesh::HalfedgeHandle he0 = m.halfedge_handle(*eiter, 0);
-            if (he0.is_valid()) {
-                // Face present
-                Mesh::HalfedgeHandle he1 = m.next_halfedge_handle(he0);
-                Mesh::HalfedgeHandle he2 = m.next_halfedge_handle(he1);
-                
-                Eigen::Vector3f v0 = pos.col(m.from_vertex_handle(he1).idx()) - pos.col(m.to_vertex_handle(he1).idx());
-                Eigen::Vector3f v1 = pos.col(m.to_vertex_handle(he2).idx()) - pos.col(m.from_vertex_handle(he2).idx());
-
-                // cot(alpha) = cos(alpha) / sin(alpha)
-                // (dot(v0,v1) * cos(alpha)) / (|v0||v1| * sin(alpha))
-                // (dot(v0,v1) / |cross(v0, v1)|
-                cot_alpha = v0.dot(v1) / (1e-6f * v0.cross(v1).norm());
-            }
-
-            he0 = m.halfedge_handle(*eiter, 1);
-            if (he0.is_valid()) {
-                // Face present
-                Mesh::HalfedgeHandle he1 = m.next_halfedge_handle(he0);
-                Mesh::HalfedgeHandle he2 = m.next_halfedge_handle(he1);
-
-                Eigen::Vector3f v0 = pos.col(m.from_vertex_handle(he1).idx()) - pos.col(m.to_vertex_handle(he1).idx());
-                Eigen::Vector3f v1 = pos.col(m.to_vertex_handle(he2).idx()) - pos.col(m.from_vertex_handle(he2).idx());
-
-                cot_beta = v0.dot(v1) / (1e-6f * v0.cross(v1).norm());
-            }
-
-            //m.property(w, *eiter) = (cot_alpha + cot_beta) * 0.5f;
-            m.property(w, *eiter) = 1.0f;
-        }        
-
-    }
-
-    void AsRigidAsPossibleDeform::estimateRotations()
+    void AsRigidAsPossibleDeformation::estimateRotations()
     {
         Mesh &m = *_data->mesh;
         for (auto viter = m.vertices_begin(); viter != m.vertices_end(); ++viter) {
-            const Eigen::Vector3f vi = toEigen(m.point(viter.handle()));
+            const Eigen::Vector3f vi = toEigen(m.point(*viter));
             const Eigen::Vector3f vip = _data->points.col(viter->idx());
 
             Eigen::Matrix3f cov = Eigen::Matrix3f::Zero();
 
-            for (auto vv = m.vv_begin(*viter); vv; ++vv) {
-                Mesh::HalfedgeHandle heh = vv.current_halfedge_handle();
-                Mesh::EdgeHandle eh = m.edge_handle(heh);
-                float w = m.property(_data->weights, eh);
+            for (auto vh = m.voh_begin(*viter); vh != m.voh_end(*viter); ++vh) {
+                
+                Mesh::VertexHandle vhj = m.to_vertex_handle(*vh);
+                const float w = -_data->L.coeff(viter->idx(), vhj.idx());
 
-                const Eigen::Vector3f vj = toEigen(m.point(vv.handle()));
-                const Eigen::Vector3f &vjp = _data->points.col(vv->idx());
+                const Eigen::Vector3f vj = toEigen(m.point(vhj));
+                const Eigen::Vector3f &vjp = _data->points.col(vhj.idx());
 
                 cov += w * (vi - vj) * ((vip - vjp).transpose());
             }
 
-            Eigen::JacobiSVD<Eigen::Matrix3f> svd(cov, Eigen::ComputeThinU | Eigen::ComputeThinV); 
+            Eigen::JacobiSVD<Eigen::Matrix3f> svd(cov, Eigen::ComputeFullU | Eigen::ComputeFullV);
             const Eigen::Matrix3f &v = svd.matrixV();
             const Eigen::Matrix3f ut = svd.matrixU().transpose();
             
             Eigen::Matrix3f id = Eigen::Matrix3f::Identity(3, 3);
             id(2, 2) = (v * ut).determinant();
-            _data->rotations[viter->idx()] = (v * id * ut); // accounts for required flip  
-            std::cout << _data->rotations[viter->idx()] << std::endl;
+            _data->rotations[viter->idx()] = (v * id * ut); // accounts for required flip
         }
     }
 
-    void AsRigidAsPossibleDeform::estimatePositions()
+    void AsRigidAsPossibleDeformation::estimatePositions()
     {
         computeB();
         
@@ -238,45 +186,20 @@ namespace deform {
         }        
     }
 
-    void AsRigidAsPossibleDeform::computeL()
+    void AsRigidAsPossibleDeformation::computeL()
     {
         Mesh &m = *_data->mesh;
-       
-        typedef Eigen::Triplet<float> T;
-        std::vector<T> triplets;
-
-        for (auto viter = m.vertices_begin(); viter != m.vertices_end(); ++viter) {
-            int i = viter->idx();
-            
-            if (m.property(_data->isConstrained, *viter)) {
-                // If this vertex is constraint we enforce lhs = rhs
-                triplets.push_back(T(i, i, 1.f));              
-            } else {
-                // Otherwise we need to loop over connected vertices.
-                float sumw = 0.0f;
-                for (auto vv = m.vv_begin(*viter); vv; ++vv) {
-                    Mesh::HalfedgeHandle heh = vv.current_halfedge_handle();
-                    Mesh::EdgeHandle eh = m.edge_handle(heh);
-                    float w = m.property(_data->weights, eh);
-
-                    sumw += w;
-                    triplets.push_back(T(i, vv->idx(), -w));
-                }
-                triplets.push_back(T(i, i, sumw));
-            }
-
-        }
-
-
-        _data->L.resize(m.n_vertices(), m.n_vertices());
-        _data->L.setZero();        
-        _data->L.setFromTriplets(triplets.begin(), triplets.end());
-
-        _data->solver.analyzePattern(_data->L);
+        
+        OpenMesh::HPropHandleT<float> hew;
+        m.add_property(hew);
+        cotanWeights(m, hew);
+        cotanMatrix(m, hew, _data->L);
+        m.remove_property(hew);
+        
         _data->solver.compute(_data->L);
     }
 
-    void AsRigidAsPossibleDeform::computeB()
+    void AsRigidAsPossibleDeformation::computeB()
     {
         Mesh &m = *_data->mesh;
 
@@ -287,20 +210,19 @@ namespace deform {
 
             if (m.property(_data->isConstrained, *viter)) {
                 // If this vertex is constraint we enforce lhs = rhs
-                _data->b.row(i) = toEigen(m.point(viter.handle())).transpose();
+                _data->b.row(i) = toEigen(m.point(*viter)).transpose();
             }
             else {
                 // else w/2 * (Ri+Rj) * (pi - pj)
                 Eigen::Vector3f sum = Eigen::Vector3f::Zero();
 
-                for (auto vv = m.vv_begin(*viter); vv; ++vv) {
-                    int j = vv->idx();
+                for (auto vh = m.voh_begin(*viter); vh != m.voh_end(*viter); ++vh) {
+                    
+                    Mesh::VertexHandle vj = m.to_vertex_handle(*vh);
+                    
+                    const float w = -_data->L.coeff(i, vj.idx());
 
-                    Mesh::HalfedgeHandle heh = vv.current_halfedge_handle();
-                    Mesh::EdgeHandle eh = m.edge_handle(heh);
-                    float w = m.property(_data->weights, eh);
-
-                    Eigen::Vector3f t = (_data->rotations[i] + _data->rotations[j]) * (toEigen(m.point(viter.handle())) - toEigen(m.point(vv.handle())));
+                    Eigen::Vector3f t = (_data->rotations[i] + _data->rotations[vj.idx()]) * (toEigen(m.point(*viter)) - toEigen(m.point(vj)));
 
                     sum += 0.5f * w * t;
                 }

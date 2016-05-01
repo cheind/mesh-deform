@@ -20,13 +20,15 @@ list(APPEND DEFORM_LINK_TARGETS ${OPENMESH_LIBRARIES})
 
 add_library(deform
     inc/deform/mesh.h
+    inc/deform/cotan_matrix.h
     inc/deform/arap.h
     src/arap.cpp
+    src/cotan_matrix.cpp
 )
 
 add_executable(deform_tests
     tests/catch.hpp
-    tests/test_weights.cpp
+    tests/test_cotan.cpp
 )
 target_link_libraries(deform_tests deform ${DEFORM_LINK_TARGETS})
 

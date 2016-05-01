@@ -16,12 +16,12 @@
 
 namespace deform {
     
-    class AsRigidAsPossibleDeform {
+    class AsRigidAsPossibleDeformation {
     public:
-        AsRigidAsPossibleDeform(Mesh * mesh);
-        ~AsRigidAsPossibleDeform();
-        AsRigidAsPossibleDeform(const AsRigidAsPossibleDeform &other) = delete;
-        AsRigidAsPossibleDeform &operator=(const AsRigidAsPossibleDeform &other) = delete;
+        AsRigidAsPossibleDeformation(Mesh * mesh);
+        ~AsRigidAsPossibleDeformation();
+        AsRigidAsPossibleDeformation(const AsRigidAsPossibleDeformation &other) = delete;
+        AsRigidAsPossibleDeformation &operator=(const AsRigidAsPossibleDeformation &other) = delete;
 
         void setConstraint(Mesh::VertexHandle v, const Mesh::Point &pos);
         void deform(size_t nIterations);
@@ -32,7 +32,6 @@ namespace deform {
         void restorePositions();
         void attachMeshProperties();
         void releaseMeshProperties();
-        void computeEdgeWeights();
         void estimateRotations();
         void estimatePositions();
         void computeL();
