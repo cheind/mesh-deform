@@ -27,11 +27,11 @@ TEST_CASE("test_cotanmatrix")
     m.add_face(deform::Mesh::VertexHandle(0), deform::Mesh::VertexHandle(2), deform::Mesh::VertexHandle(3));
     
     
-    OpenMesh::HPropHandleT<float> w;
+    OpenMesh::EPropHandleT<double> w;
     m.add_property(w);
     deform::cotanWeights(m, w);
     
-    Eigen::SparseMatrix<float> C;
+    Eigen::SparseMatrix<double> C;
     deform::cotanMatrix(m, w, C);
     
     Eigen::Matrix4f is = C;
@@ -41,6 +41,6 @@ TEST_CASE("test_cotanmatrix")
                 0.f, -0.5f, 1.f, -0.5f,
                 -0.5f, 0.f, -0.5f, 1.f;
     
-    REQUIRE(is.isApprox(expected, 1e-4));
+    REQUIRE(is.isApprox(expected, 1e-4f));
 }
     

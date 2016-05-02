@@ -16,8 +16,9 @@
 
 namespace deform {
     
-    void cotanWeights(Mesh &m, OpenMesh::HPropHandleT<float> &w);
-    void cotanMatrix(Mesh &m, const OpenMesh::HPropHandleT<float> &w, Eigen::SparseMatrix<float> &c);
+    void cotanWeights(Mesh &m, OpenMesh::EPropHandleT<double> &w);
+    void cotanMatrix(Mesh &m, const OpenMesh::EPropHandleT<double> &w, Eigen::SparseMatrix<double> &c);
+    void cotanMatrixWithConstraints(Mesh &m, const OpenMesh::EPropHandleT<double> &w, const OpenMesh::VPropHandleT<bool> &vc, Eigen::SparseMatrix<double> &c);
     
 }
 

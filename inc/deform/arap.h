@@ -27,8 +27,6 @@ namespace deform {
         void deform(size_t nIterations);
 
     private:
-
-        void copyPositions();
         void restorePositions();
         void attachMeshProperties();
         void releaseMeshProperties();

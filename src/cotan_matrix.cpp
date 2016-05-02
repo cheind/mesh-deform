@@ -13,13 +13,13 @@
 
 namespace deform {
     
-    void cotanWeights(Mesh &m, OpenMesh::HPropHandleT<float> &w) {
+    void cotanWeights(Mesh &m, OpenMesh::EPropHandleT<double> &w) {
         // https://igl.ethz.ch/projects/bbw/a-cotangent-laplacian-for-images-as-surfaces-2012-jacobson-sorkine.pdf
         
         std::fill(m.property(w).data_vector().begin(), m.property(w).data_vector().end(), 0.f);
         
         // Compute edge lengths
-        OpenMesh::EPropHandleT<float> edgelengths;
+        OpenMesh::EPropHandleT<double> edgelengths;
         m.add_property(edgelengths);
         
         for (auto e = m.edges_begin(); e != m.edges_end(); ++e) {
@@ -34,42 +34,45 @@ namespace deform {
             Mesh::HalfedgeHandle he1 = m.next_halfedge_handle(he0);
             Mesh::HalfedgeHandle he2 = m.next_halfedge_handle(he1);
             
-            const float l0 = m.property(edgelengths, m.edge_handle(he0));
-            const float l1 = m.property(edgelengths, m.edge_handle(he1));
-            const float l2 = m.property(edgelengths, m.edge_handle(he2));
+            const double l0 = m.property(edgelengths, m.edge_handle(he0));
+            const double l1 = m.property(edgelengths, m.edge_handle(he1));
+            const double l2 = m.property(edgelengths, m.edge_handle(he2));
             
-            const float semip = 0.5f * (l0 + l1 + l2);
-            const float area = std::sqrt(semip*(semip - l0)*(semip - l1) * (semip - l2));
-            const float denom = 1.f / (4.f * area);
+            const double semip = 0.5f * (l0 + l1 + l2);
+            const double area = std::sqrt(semip*(semip - l0)*(semip - l1) * (semip - l2));
+            const double denom = 1.f / (4.f * area);
             
             
-            const float cot0 = (-l0 * l0 + l1 * l1 + l2 * l2) * denom;
-            const float cot1 = (l0 * l0 - l1 * l1 + l2 * l2) * denom;
-            const float cot2 = (l0 * l0 + l1 * l1 - l2 * l2) * denom;
+            const double cot0 = (-l0 * l0 + l1 * l1 + l2 * l2) * denom;
+            const double cot1 = (l0 * l0 - l1 * l1 + l2 * l2) * denom;
+            const double cot2 = (l0 * l0 + l1 * l1 - l2 * l2) * denom;
             
 
-            m.property(w, he0) = cot0;
-            m.property(w, he1) = cot1;
-            m.property(w, he2) = cot2;
+            m.property(w, m.edge_handle(he0)) += cot0;
+            m.property(w, m.edge_handle(he1)) += cot1;
+            m.property(w, m.edge_handle(he2)) += cot2;
+        }
+
+        for (auto e = m.edges_begin(); e != m.edges_end(); ++e) {
+            m.property(w, *e) *= 0.5;
         }
 
         m.remove_property(edgelengths);
     }
     
-    void cotanMatrix(Mesh &m, const OpenMesh::HPropHandleT<float> &w, Eigen::SparseMatrix<float> &c) {
+    void cotanMatrix(Mesh &m, const OpenMesh::EPropHandleT<double> &w, Eigen::SparseMatrix<double> &c) {
         const size_t nverts = m.n_vertices();
         
-        c.resize(nverts, nverts);
+        c.resize(static_cast<int>(nverts), static_cast<int>(nverts));
         c.reserve(Eigen::VectorXi::Constant(nverts, 1, 7)); // Average numbers of neighbors on closed 2d manifold
         
-        typedef Eigen::Triplet<float> T;
+        typedef Eigen::Triplet<double> T;
         std::vector<T> triplets;
         
         for (auto v = m.vertices_begin(); v != m.vertices_end(); ++v) {
             for (auto h = m.voh_begin(*v); h != m.voh_end(*v); ++h) {
-                Mesh::HalfedgeHandle opp = m.opposite_halfedge_handle(*h);
-                
-                const float weight = (m.property(w, *h) + m.property(w, opp)) / 2;
+                Mesh::EdgeHandle eh = m.edge_handle(*h);
+                const double weight = m.property(w, eh);
                 
                 triplets.push_back(T(v->idx(), m.to_vertex_handle(*h).idx(), -weight));
                 triplets.push_back(T(v->idx(), v->idx(), weight));
@@ -79,6 +82,37 @@ namespace deform {
         c.setZero();
         c.setFromTriplets(triplets.begin(), triplets.end());
     }
+
+    void cotanMatrixWithConstraints(Mesh &m, const OpenMesh::EPropHandleT<double> &w, const OpenMesh::VPropHandleT<bool> &vc, Eigen::SparseMatrix<double> &c)
+    {
+        const size_t nverts = m.n_vertices();
+
+        c.resize(static_cast<int>(nverts), static_cast<int>(nverts));
+        c.reserve(Eigen::VectorXi::Constant(nverts, 1, 7)); // Average numbers of neighbors on closed 2d manifold
+
+        typedef Eigen::Triplet<double> T;
+        std::vector<T> triplets;
+
+        for (auto v = m.vertices_begin(); v != m.vertices_end(); ++v) {
+
+            if (m.property(vc, *v)) {
+                triplets.push_back(T(v->idx(), v->idx(), 1.0));
+            }
+            else {
+                for (auto h = m.voh_begin(*v); h != m.voh_end(*v); ++h) {
+                    Mesh::EdgeHandle eh = m.edge_handle(*h);
+                    const double weight = m.property(w, eh);
+
+                    triplets.push_back(T(v->idx(), m.to_vertex_handle(*h).idx(), -weight));
+                    triplets.push_back(T(v->idx(), v->idx(), weight));
+                }
+            }
+        }
+
+        c.setZero();
+        c.setFromTriplets(triplets.begin(), triplets.end());
+    }
+
     
     
 }
