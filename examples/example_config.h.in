@@ -1,0 +1,7 @@
+
+#ifndef EXAMPLE_CONFIG_H
+#define EXAMPLE_CONFIG_H
+
+#cmakedefine DEFORM_ETC_DIR "@DEFORM_ETC_DIR@"
+
+#endif

@@ -12,10 +12,11 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(DEFORM_LINK_TARGETS)
 
-set(DEFORM_EIGEN_DIR "../eigen" CACHE PATH "Where is the include directory of Eigen located")
+set(EIGEN_INCLUDE_DIR "../eigen" CACHE PATH "Where is the include directory of Eigen located")
 find_package(OpenMesh REQUIRED)
+find_package(OpenSceneGraph QUIET COMPONENTS osgViewer osgFX osgGA)
 
-include_directories("inc" ${OPENMESH_INCLUDE_DIR} ${DEFORM_EIGEN_DIR})
+include_directories("inc" ${OPENMESH_INCLUDE_DIR} ${EIGEN_INCLUDE_DIR})
 list(APPEND DEFORM_LINK_TARGETS ${OPENMESH_LIBRARIES})
 
 add_library(deform
@@ -32,7 +33,18 @@ add_executable(deform_tests
 )
 target_link_libraries(deform_tests deform ${DEFORM_LINK_TARGETS})
 
-add_executable(deform_example
-    examples/deform_example.cpp
-)
-target_link_libraries(deform_example deform ${DEFORM_LINK_TARGETS})
+set(DEFORM_ETC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/etc")
+configure_file(examples/example_config.h.in example_config.h)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories("examples")
+
+if (OPENSCENEGRAPH_FOUND)
+		set(OSG_COMMON_FILES examples/osg_viewer.h examples/osg_viewer.cpp)
+
+    include_directories(${OPENSCENEGRAPH_INCLUDE_DIRS})
+    add_executable(deform_sphere
+        examples/deform_sphere.cpp
+				${OSG_COMMON_FILES}
+    )
+    target_link_libraries(deform_sphere deform ${DEFORM_LINK_TARGETS} ${OPENSCENEGRAPH_LIBRARIES})
+endif()
