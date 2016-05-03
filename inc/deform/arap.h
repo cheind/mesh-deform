@@ -30,10 +30,15 @@ namespace deform {
         void restorePositions();
         void attachMeshProperties();
         void releaseMeshProperties();
+
+        void setupFreeVariableMap();
         void estimateRotations();
         void estimatePositions();
-        void computeL();
+        void prepareLinearSystem();
         void computeB();
+
+
+
 
 
         struct data;

@@ -32,27 +32,35 @@ int main(int argc, char **argv) {
     const int anchorIds[] = { 37 };
     const int handleIds[] = { 36,37,38,39,58,59,78,79,98,99,118,119,138,139,158,159,178,179,198,199,218,219,238,239,258,259,278,279,298,299,318,319,338,339,358,359,378,379,398,399 };
 
-    deform::AsRigidAsPossibleDeformation arap(&mesh);
 
-    for (int i = 0; i < nids; ++i) {
-        deform::Mesh::VertexHandle vh = mesh.vertex_handle(anchorIds[i]);
-        arap.setConstraint(vh, mesh.point(vh));
+    int idx = 0;
+    for (double t = -M_PI_2; t < M_PI_2; t += 0.1) {
+        deform::Mesh meshcopy(mesh);
+        deform::AsRigidAsPossibleDeformation arap(&meshcopy);
+
+        for (int i = 0; i < nids; ++i) {
+            deform::Mesh::VertexHandle vh = meshcopy.vertex_handle(anchorIds[i]);
+            arap.setConstraint(vh, meshcopy.point(vh));
+        }
+
+        deform::Mesh::VertexHandle vh = meshcopy.vertex_handle(32);
+        arap.setConstraint(vh, meshcopy.point(vh) + deform::Mesh::Point(0, 0, (float)(std::sin(t))));
+        arap.deform(20);
+
+        std::stringstream str;
+        str << "deformed_" << idx++ << ".ply";
+        OpenMesh::IO::write_mesh(meshcopy, str.str());
     }
-
-    for (int i = 0; i < nids; ++i) {
-        //deform::Mesh::VertexHandle vh = mesh.vertex_handle(handleIds[i]);
-        deform::Mesh::VertexHandle vh = mesh.vertex_handle(32);
-        arap.setConstraint(vh, mesh.point(vh) + deform::Mesh::Point(0, 0, 1.0));
-    }
-
-    arap.deform(10);   
-
+    
+    /*
     std::cout << "ok" << std::endl;
 
     if (!OpenMesh::IO::write_mesh(mesh, "deformed.ply")) {
         std::cerr << "Failed to write mesh" << std::endl;
         return -1;
     }
+
+    */
     
 
     return 0;

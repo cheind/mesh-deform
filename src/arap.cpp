@@ -27,6 +27,7 @@ namespace deform {
     }
 
     typedef OpenMesh::VPropHandleT<bool> VertexBoolProperty;
+    typedef OpenMesh::VPropHandleT<int> VertexIntProperty;
     typedef OpenMesh::VPropHandleT<Eigen::Vector3d> VertexPointProperty;
     typedef OpenMesh::EPropHandleT<double> EdgeWeightProperty;
 
@@ -34,18 +35,19 @@ namespace deform {
         Mesh *mesh;
 
         VertexBoolProperty isConstrained;
+        VertexIntProperty freeIdx;
         VertexPointProperty constraintLocations; // target
         EdgeWeightProperty cotanWeights;
 
         Eigen::Matrix3Xd points, pointsPrime;
 
         std::vector<Eigen::Matrix3d, Eigen::aligned_allocator<Eigen::Matrix3d> > rotations;
-        Eigen::SparseMatrix<double> Lt;
-        Eigen::Matrix<double, Eigen::Dynamic, 3> b;
+        Eigen::SparseMatrix<double> L;
+        Eigen::Matrix3Xd b;
+        int nFreeVariables;
         
-        //Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
-        //Eigen::SimplicialLLT< Eigen::SparseMatrix<float> > solver;
+
         bool dirty;
 
         data()
@@ -61,7 +63,9 @@ namespace deform {
         }
 
         _data->mesh = mesh;
-        attachMeshProperties();        
+        attachMeshProperties();       
+
+        std::fill(mesh->property(_data->isConstrained).data_vector().begin(), mesh->property(_data->isConstrained).data_vector().end(), false);
         
         const size_t nverts = mesh->n_vertices();
         _data->points.resize(3, nverts);
@@ -86,21 +90,53 @@ namespace deform {
         _data->pointsPrime.col(v.idx()) = toEigen(pos);
     }
 
+    void AsRigidAsPossibleDeformation::attachMeshProperties()
+    {
+        Mesh *m = _data->mesh;
+        
+        m->add_property(_data->isConstrained);
+        m->add_property(_data->cotanWeights);
+        m->add_property(_data->constraintLocations);
+        m->add_property(_data->freeIdx);
+    }
+
+    void AsRigidAsPossibleDeformation::releaseMeshProperties()
+    {
+        Mesh *m = _data->mesh;
+        if (!m)
+            return;
+
+        m->remove_property(_data->isConstrained);
+        m->remove_property(_data->cotanWeights);
+        m->remove_property(_data->constraintLocations);
+        m->remove_property(_data->freeIdx);
+    }
+
+    void AsRigidAsPossibleDeformation::restorePositions()
+    {
+        Mesh *m = _data->mesh;
+
+        Eigen::Matrix3Xd &p = _data->pointsPrime;
+
+        for (size_t i = 0; i < m->n_vertices(); ++i) {
+            m->point(Mesh::VertexHandle(static_cast<int>(i))) = toMesh(p.col(i));
+        }
+    }
+
     void AsRigidAsPossibleDeformation::deform(size_t nIterations)
     {
         if (_data->dirty) {
             const size_t nv = _data->mesh->n_vertices();
-            
-            // Initial rotations are identity
+
+            // Initial rotations for all variables including constrained are identity
             _data->rotations.clear();
             _data->rotations.resize(nv, Eigen::Matrix3d::Identity());
 
-            // Init right hand side of linear system
-            _data->b.resize(nv, 3);
-            _data->b.setZero();
+            // Compute number of free variables and mapping of indices.
+            this->setupFreeVariableMap();
 
             // Pre-factor matrix A (L)        
-            computeL();
+            prepareLinearSystem();
 
             _data->dirty = false;
         }
@@ -116,41 +152,71 @@ namespace deform {
         restorePositions();
     }
 
-    void AsRigidAsPossibleDeformation::restorePositions()
+    void AsRigidAsPossibleDeformation::prepareLinearSystem()
     {
-        Mesh *m = _data->mesh;
+        Mesh &m = *_data->mesh;
+        Eigen::SparseMatrix<double> &L = _data->L;
+        Eigen::Matrix3Xd &b = _data->b;
 
-        Eigen::Matrix3Xd &p = _data->pointsPrime;
+        // Compute edge weights.
+        cotanWeights(m, _data->cotanWeights);
 
-        for (size_t i = 0; i < m->n_vertices(); ++i) {
-            m->point(Mesh::VertexHandle(static_cast<int>(i))) = toMesh(p.col(i));
+        // Setup L and constant part of b.
+        L.resize(_data->nFreeVariables, _data->nFreeVariables);
+        L.reserve(Eigen::VectorXi::Constant(_data->nFreeVariables, 1, 7)); // Average numbers of neighbors on closed 2d manifold
+        L.setZero();
+
+        b.resize(3, _data->nFreeVariables);
+        b.setZero();
+
+        typedef Eigen::Triplet<double> T;
+        std::vector<T> triplets;
+
+        for (auto vi = m.vertices_begin(); vi != m.vertices_end(); ++vi) {
+            
+            // Skip constrained vertex rows and cols
+            if (m.property(_data->isConstrained, *vi))
+                continue;
+
+            int iidx = m.property(_data->freeIdx, *vi);
+
+            // If not constrained setup cotan matrix.
+            for (auto h = m.voh_begin(*vi); h != m.voh_end(*vi); ++h) {
+                Mesh::VertexHandle vj = m.to_vertex_handle(*h);
+
+                int jidx = m.property(_data->freeIdx, vj);
+                
+                Mesh::EdgeHandle eh = m.edge_handle(*h);
+                const double weight = m.property(_data->cotanWeights, eh);
+
+                if (m.property(_data->isConstrained, vj)) {
+                    b.col(iidx) += weight * m.property(_data->constraintLocations, vj);
+                } else {
+                    triplets.push_back(T(iidx, jidx, -weight));
+                }
+
+                triplets.push_back(T(iidx, iidx, weight));
+            }
         }
+
+        L.setFromTriplets(triplets.begin(), triplets.end());
+        _data->solver.compute(L);
+        
     }
 
-    void AsRigidAsPossibleDeformation::attachMeshProperties()
+    void AsRigidAsPossibleDeformation::setupFreeVariableMap()
     {
-        Mesh *m = _data->mesh;
+        Mesh &m = *_data->mesh;                
+        VertexIntProperty &map = _data->freeIdx;
+        VertexBoolProperty &constrained = _data->isConstrained;
 
-        VertexBoolProperty &vc = _data->isConstrained;
-        m->add_property(vc);
-        std::fill(m->property(vc).data_vector().begin(), m->property(vc).data_vector().end(), false);
+        int freeIdx = 0;
+        for (auto v = m.vertices_begin(); v != m.vertices_end(); ++v) {
+            int id = m.property(constrained, *v) ? -1 : freeIdx++;
+            m.property(map, *v) = id;
+        }
 
-        EdgeWeightProperty &ew = _data->cotanWeights;
-        m->add_property(ew);
-
-        VertexPointProperty &vcp = _data->constraintLocations;
-        m->add_property(vcp);
-    }
-
-    void AsRigidAsPossibleDeformation::releaseMeshProperties()
-    {
-        Mesh *m = _data->mesh;
-        if (!m)
-            return;
-
-        m->remove_property(_data->isConstrained);
-        m->remove_property(_data->cotanWeights);
-        m->remove_property(_data->constraintLocations);
+        _data->nFreeVariables = freeIdx;
     }
 
     void AsRigidAsPossibleDeformation::estimateRotations()
@@ -189,29 +255,48 @@ namespace deform {
 
     void AsRigidAsPossibleDeformation::estimatePositions()
     {
-        computeB();
+        Mesh &m = *_data->mesh;
 
+        Eigen::Matrix3Xd rhs = _data->b;
+
+        for (auto vi = m.vertices_begin(); vi != m.vertices_end(); ++vi) {
+            if (m.property(_data->isConstrained, *vi))
+                continue;
+
+            int iidx = m.property(_data->freeIdx, *vi);
+
+            // else w/2 * (Ri+Rj) * (pi - pj)
+            for (auto vh = m.voh_begin(*vi); vh != m.voh_end(*vi); ++vh) {
+
+                Mesh::VertexHandle vj = m.to_vertex_handle(*vh);
+                int j = vj.idx();
+
+                Eigen::Matrix3d r = (_data->rotations[vi->idx()] + _data->rotations[vj.idx()]);
+                Eigen::Vector3d v = _data->points.col(vi->idx()) - _data->points.col(vj.idx());
+                Eigen::Vector3d t = r * v;
+                const double w = m.property(_data->cotanWeights, m.edge_handle(*vh));
+                rhs.col(iidx) += w * t * 0.5;
+            }
+        }
+        
         // Solve Lp' = b
-        for (size_t i = 0; i < 3; ++i) {
-            Eigen::VectorXd Ltb = _data->Lt * _data->b.col(i);
-            _data->pointsPrime.row(i) = _data->solver.solve(Ltb).transpose();            
+
+        for (int d = 0; d < 3; ++d) {
+            Eigen::VectorXd pprime = _data->solver.solve(rhs.row(d).transpose());
+
+            int idx = 0;
+            for (auto vi = m.vertices_begin(); vi != m.vertices_end(); ++vi) {
+                if (!m.property(_data->isConstrained, *vi)) {
+                    _data->pointsPrime(d, vi->idx()) = pprime(idx++);
+                }                    
+            }
         }
     }
 
-    void AsRigidAsPossibleDeformation::computeL()
-    {
-        Mesh &m = *_data->mesh;
-        
-        Eigen::SparseMatrix<double> L;
-        cotanWeights(m, _data->cotanWeights);
-        cotanMatrixWithConstraints(m, _data->cotanWeights, _data->isConstrained, L); 
-        
-        _data->Lt = L.transpose();
-        _data->solver.compute(_data->Lt * L);        
-    }
 
     void AsRigidAsPossibleDeformation::computeB()
     {
+        /*
         Mesh &m = *_data->mesh;
 
         _data->b.setZero();
@@ -241,5 +326,6 @@ namespace deform {
                 _data->b.row(i) = sum.transpose();
             }
         }
+        */
     }
 }
