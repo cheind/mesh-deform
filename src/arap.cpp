@@ -83,11 +83,10 @@ namespace deform {
    
     void AsRigidAsPossibleDeformation::setConstraint(Mesh::VertexHandle v, const Mesh::Point & pos)
     {
-        bool isc = _data->mesh->property(_data->isConstrained, v);
-        _data->dirty |= !isc;
         _data->mesh->property(_data->isConstrained, v) = true;
         _data->mesh->property(_data->constraintLocations, v) = toEigen(pos);
         _data->pointsPrime.col(v.idx()) = toEigen(pos);
+        _data->dirty = true;
     }
 
     void AsRigidAsPossibleDeformation::attachMeshProperties()
@@ -129,7 +128,6 @@ namespace deform {
             const size_t nv = _data->mesh->n_vertices();
 
             // Initial rotations for all variables including constrained are identity
-            _data->rotations.clear();
             _data->rotations.resize(nv, Eigen::Matrix3d::Identity());
 
             // Compute number of free variables and mapping of indices.
@@ -269,7 +267,6 @@ namespace deform {
             for (auto vh = m.voh_begin(*vi); vh != m.voh_end(*vi); ++vh) {
 
                 Mesh::VertexHandle vj = m.to_vertex_handle(*vh);
-                int j = vj.idx();
 
                 Eigen::Matrix3d r = (_data->rotations[vi->idx()] + _data->rotations[vj.idx()]);
                 Eigen::Vector3d v = _data->points.col(vi->idx()) - _data->points.col(vj.idx());
