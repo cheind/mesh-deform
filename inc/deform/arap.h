@@ -35,7 +35,6 @@ namespace deform {
         void estimateRotations();
         void estimatePositions();
         void prepareLinearSystem();
-        void computeB();
 
 
 

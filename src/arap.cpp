@@ -289,40 +289,4 @@ namespace deform {
             }
         }
     }
-
-
-    void AsRigidAsPossibleDeformation::computeB()
-    {
-        /*
-        Mesh &m = *_data->mesh;
-
-        _data->b.setZero();
-
-        for (auto viter = m.vertices_begin(); viter != m.vertices_end(); ++viter) {
-            int i = viter->idx();
-
-            if (m.property(_data->isConstrained, *viter)) {
-                // If this vertex is constraint we enforce lhs = rhs
-                _data->b.row(i) = m.property(_data->constraintLocations, *viter);
-            }
-            else {
-                // else w/2 * (Ri+Rj) * (pi - pj)
-                Eigen::Vector3d sum = Eigen::Vector3d::Zero();
-
-                for (auto vh = m.voh_begin(*viter); vh != m.voh_end(*viter); ++vh) {
-                    
-                    Mesh::VertexHandle vj = m.to_vertex_handle(*vh);
-                    int j = vj.idx();
-
-                    Eigen::Matrix3d r = (_data->rotations[i] + _data->rotations[j]);
-                    Eigen::Vector3d v = _data->points.col(i) - _data->points.col(j);
-                    Eigen::Vector3d t = r * v;
-                    const double w = m.property(_data->cotanWeights, m.edge_handle(*vh));
-                    sum += w * t * 0.5;
-                }
-                _data->b.row(i) = sum.transpose();
-            }
-        }
-        */
-    }
 }
