@@ -17,7 +17,7 @@
 #include <osgViewer/Viewer>
 #include <osgViewer/ViewerEventHandlers>
 #include <osgFX/Scribe>
-#include <iostream>
+#include <osg/ShadeModel>
 
 namespace deform {
     namespace example {
@@ -84,13 +84,22 @@ namespace deform {
             
             osg::ArgumentParser arguments(&argc, argv);
             _data->viewer = new osgViewer::Viewer(arguments);
+            //osg::DisplaySettings::instance()->setNumMultiSamples(8);
             _data->viewer->setSceneData(_data->root);
             _data->viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
             _data->viewer->getCamera()->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
             
             _data->viewer->realize();
-            //_data->viewer->addEventHandler(new osgViewer::StatsHandler) ;
-            //_data->viewer->getEventQueue()->keyPress('s');
+
+            typedef osgViewer::Viewer::Windows Windows;
+            Windows windows;
+            _data->viewer->getWindows(windows);
+            for (auto w : windows) {
+                w->setWindowName("Mesh-Deform https://github.com/cheind/mesh-deform");
+            }
+            
+
+            _data->viewer->addEventHandler(new osgViewer::StatsHandler) ;
             
         }
         
@@ -136,8 +145,13 @@ namespace deform {
             geode->addDrawable(geometry);
             geode->setDataVariance(osg::Object::DYNAMIC);
             geode->setUpdateCallback(new OSGUpdateCallback(_data->mesh, &_data->dc));
-            
-            
+
+            osg::StateSet* state = geode->getOrCreateStateSet();
+            osg::ShadeModel* sm = new osg::ShadeModel();
+            sm->setMode(osg::ShadeModel::FLAT);
+            state->setAttributeAndModes(sm, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+            geode->setStateSet(state);
+                        
             osg::ref_ptr<osgFX::Scribe> scribe = new osgFX::Scribe();
             scribe->setWireframeColor(osg::Vec4d(0,0,0,1));
             scribe->setWireframeLineWidth(1.f);
