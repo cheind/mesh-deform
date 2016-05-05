@@ -17,6 +17,7 @@
 #include <Eigen/SVD>
 #include <vector>
 #include <unordered_map>
+#include <iostream>
 
 namespace deform {
     
@@ -115,12 +116,19 @@ namespace deform {
                 auto v2 = _p.col(vids(2));
                 
                 
-                const Scalar l0 = (v1 - v0).norm();
-                const Scalar l1 = (v2 - v1).norm();
-                const Scalar l2 = (v0 - v2).norm();
+                // TODO: How to handle near degenerate triangles?
+                // https://igl.ethz.ch/projects/deformation-survey/deformation_survey.pdf
+                Scalar l0 = std::min<Scalar>(Scalar(1e-8), (v1 - v0).squaredNorm());
+                Scalar l1 = std::min<Scalar>(Scalar(1e-8), (v2 - v1).squaredNorm());
+                Scalar l2 = std::min<Scalar>(Scalar(1e-8), (v0 - v2).squaredNorm());
+                
+                l0 = std::sqrt(l0);
+                l1 = std::sqrt(l1);
+                l2 = std::sqrt(l2);
                 
                 const Scalar semip = Scalar(0.5) * (l0 + l1 + l2);
                 const Scalar area = std::sqrt(semip*(semip - l0)*(semip - l1) * (semip - l2));
+                
                 const Scalar denom = Scalar(1.0) / (Scalar(4.0) * area);
                 
                 const Scalar cot0 = (-l0 * l0 + l1 * l1 + l2 * l2) * denom;

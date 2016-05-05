@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
         
         Mesh::VertexHandle vh = mesh.vertex_handle(32);
         arap.setConstraint(vh.idx(), deform::convert::toEigen(p + Mesh::Point(0, 0, (float)(std::sin(pi)))));
-        arap.deform(3);
+        arap.deform(5);
         
         return true;
     });
