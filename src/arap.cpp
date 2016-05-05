@@ -128,6 +128,7 @@ namespace deform {
             const size_t nv = _data->mesh->n_vertices();
 
             // Initial rotations for all variables including constrained are identity
+            _data->rotations.clear();
             _data->rotations.resize(nv, Eigen::Matrix3d::Identity());
 
             // Compute number of free variables and mapping of indices.

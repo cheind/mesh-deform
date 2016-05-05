@@ -32,23 +32,24 @@ int main(int argc, char **argv) {
     double add = 0.01;
     deform::example::OSGViewer viewer(argc, argv, &mesh, [&p, &pi, &add](deform::Mesh *mesh, double time) {
         
-        
         pi += add;
         if (std::abs(pi) > M_PI_2) {
             add *= -1.0;
             pi += add;
         }
         
-        
-        deform::AsRigidAsPossibleDeformation arap(mesh);
+        deform::OpenMeshAdapter ma(*mesh);
+        deform::AsRigidAsPossibleDeformation2<deform::OpenMeshAdapter> arap(ma);
         
         // Set anchors
         deform::Mesh::VertexHandle va = mesh->vertex_handle(37);
-        arap.setConstraint(va, mesh->point(va));
+        arap.setConstraint(va.idx(), deform::toEigenF(mesh->point(va)));
         
         deform::Mesh::VertexHandle vh = mesh->vertex_handle(32);
-        arap.setConstraint(vh, p + deform::Mesh::Point(0, 0, (float)(std::sin(pi))));
+        arap.setConstraint(vh.idx(), deform::toEigenF(p + deform::Mesh::Point(0, 0, (float)(std::sin(pi)))));
         arap.deform(3);
+        
+        ma.vertices(arap.updatedPositions());
         
         return true;
     });

@@ -13,10 +13,13 @@
 
 #include <deform/mesh.h>
 #include <deform/cotan_matrix.h>
+#include <deform/arap.h>
 
 TEST_CASE("test_cotanmatrix")
 {
     deform::Mesh m;
+    
+    
     
     m.add_vertex(deform::Mesh::Point(0.f,0.f,0.f));
     m.add_vertex(deform::Mesh::Point(1.f,0.f,0.f));
@@ -42,5 +45,11 @@ TEST_CASE("test_cotanmatrix")
                 -0.5f, 0.f, -0.5f, 1.f;
     
     REQUIRE(is.isApprox(expected, 1e-4f));
+    
+    
+    deform::OpenMeshAdapter ma(m);
+    deform::AsRigidAsPossibleDeformation2<deform::OpenMeshAdapter> arap(ma);
+    arap.setConstraint(0, Eigen::Vector3f(0,0,0));
+    arap.deform(1);
 }
     
