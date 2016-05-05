@@ -84,6 +84,7 @@ namespace deform {
             
             osg::ArgumentParser arguments(&argc, argv);
             _data->viewer = new osgViewer::Viewer(arguments);
+            _data->viewer->setUpViewInWindow(100, 100, 640, 360);
             //osg::DisplaySettings::instance()->setNumMultiSamples(8);
             _data->viewer->setSceneData(_data->root);
             _data->viewer->setThreadingModel(osgViewer::Viewer::SingleThreaded);
