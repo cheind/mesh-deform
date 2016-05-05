@@ -13,8 +13,6 @@
  are unconstrained.
  */
 
-
-
 // Include as-rigid-as-possible deformation algorithm
 #include <deform/arap.h>
 
@@ -60,14 +58,16 @@ int main(int argc, char **argv) {
     Mesh::VertexHandle va = mesh.vertex_handle(37);
     arap.setConstraint(va.idx(), deform::convert::toEigen(mesh.point(va)));
     
+    // Motion related variables
     
-    // Motion related variables.
     Mesh::Point p = mesh.point(mesh.vertex_handle(32));
     double pi = -M_PI_2;
     double add = 0.01;
     
     // Create an OSG viewer to visualize incremental deformation.
     deform::example::OSGViewer viewer(argc, argv, mesh, [&p, &pi, &add, &arap](Mesh &mesh, double time) {
+        
+        // Update motion
         
         pi += add;
         if (std::abs(pi) > M_PI_2) {
@@ -78,11 +78,13 @@ int main(int argc, char **argv) {
         // Set handles. Semantically handles are vertices that are dragged around by some motion. Note,
         // although semantically they have a different meaning conceptually its the same as pinning a vertex
         // to a location.
+        
         Mesh::VertexHandle vh = mesh.vertex_handle(32);
         arap.setConstraint(vh.idx(), deform::convert::toEigen(p + Mesh::Point(0, 0, (float)(std::sin(pi)))));
         
         // Run the algorithm for 5 iterations. Usually enough when the target constrain locations are not
         // far from the initial locations. Mesh is automatically updated when method completes.
+        
         arap.deform(5);
         
         return true;
