@@ -11,7 +11,7 @@
 #ifndef DEFORM_OSG_VIEWER_H
 #define DEFORM_OSG_VIEWER_H
 
-#include <deform/mesh.h>
+#include <deform/openmesh_adapter.h>
 #include <memory>
 #include <functional>
 
@@ -20,9 +20,11 @@ namespace deform {
     
         class OSGViewer {
         public:
-            typedef std::function<bool(deform::Mesh *, double)> DeformCallback;
+            typedef OpenMesh::TriMesh_ArrayKernelT<> Mesh;
             
-            OSGViewer(int argc, char **argv, deform::Mesh *mesh, DeformCallback dc);
+            typedef std::function<bool(Mesh&, double)> DeformCallback;
+            
+            OSGViewer(int argc, char **argv, Mesh &mesh, DeformCallback dc);
             OSGViewer(const OSGViewer &other) = delete;
             OSGViewer &operator=(const OSGViewer &other) = delete;
             ~OSGViewer();

@@ -23,7 +23,7 @@ namespace deform {
     namespace example {
         
         struct OSGViewer::data {
-            deform::Mesh *mesh;
+            OSGViewer::Mesh *mesh;
             DeformCallback dc;
             osg::ref_ptr<osgViewer::Viewer> viewer;
             osg::ref_ptr<osg::Group> root;
@@ -33,13 +33,13 @@ namespace deform {
         {
         public:
             
-            OSGUpdateCallback(deform::Mesh *mesh, OSGViewer::DeformCallback *dc)
+            OSGUpdateCallback(OSGViewer::Mesh *mesh, OSGViewer::DeformCallback *dc)
             :_mesh(mesh), _dc(dc)
             {}
             
             virtual void operator()(osg::Node* node, osg::NodeVisitor* nv)
             {
-                if ((*_dc)(_mesh, nv->getFrameStamp()->getReferenceTime())) {
+                if ((*_dc)(*_mesh, nv->getFrameStamp()->getReferenceTime())) {
                     _mesh->update_normals();
                     
                     // Update vertex and normal buffer
@@ -50,10 +50,10 @@ namespace deform {
                     osg::Vec3Array *normals = static_cast<osg::Vec3Array*>(geo->getNormalArray());
                     
                     for (auto v = _mesh->vertices_begin(); v != _mesh->vertices_end(); ++v) {
-                        deform::Mesh::Point p = _mesh->point(*v);
+                        OSGViewer::Mesh::Point p = _mesh->point(*v);
                         vertices->at(v->idx()) = osg::Vec3(p[0], p[1], p[2]);
                         
-                        deform::Mesh::Point n = _mesh->normal(*v);
+                        OSGViewer::Mesh::Point n = _mesh->normal(*v);
                         normals->at(v->idx()) = osg::Vec3(n[0], n[1], n[2]);
                     }
                     
@@ -67,14 +67,14 @@ namespace deform {
             }
             
         private:
-            deform::Mesh *_mesh;
+            OSGViewer::Mesh *_mesh;
             OSGViewer::DeformCallback *_dc;
         };
         
-        OSGViewer::OSGViewer(int argc, char **argv, deform::Mesh *mesh, DeformCallback dc)
+        OSGViewer::OSGViewer(int argc, char **argv, OSGViewer::Mesh &mesh, DeformCallback dc)
             : _data(new data())
         {
-            _data->mesh = mesh;
+            _data->mesh = &mesh;
             _data->mesh->request_face_normals();
             _data->mesh->request_vertex_normals();
             _data->mesh->update_normals();
@@ -117,10 +117,10 @@ namespace deform {
             osg::ref_ptr<osg::Vec3Array> normals = new osg::Vec3Array();
         
             for (auto v = _data->mesh->vertices_begin(); v != _data->mesh->vertices_end(); ++v) {
-                deform::Mesh::Point p = _data->mesh->point(*v);
+                Mesh::Point p = _data->mesh->point(*v);
                 vertices->push_back(osg::Vec3(p[0], p[1], p[2]));
                 
-                deform::Mesh::Point n = _data->mesh->normal(*v);
+                Mesh::Point n = _data->mesh->normal(*v);
                 normals->push_back(osg::Vec3(n[0], n[1], n[2]));
             }
             
@@ -132,7 +132,7 @@ namespace deform {
                 faces->push_back(v->idx()); ++v;
                 faces->push_back(v->idx());
                 
-                deform::Mesh::Point p = _data->mesh->normal(*f);
+                Mesh::Point p = _data->mesh->normal(*f);
                 normals->push_back(osg::Vec3(p[0], p[1], p[2]));
             }
             

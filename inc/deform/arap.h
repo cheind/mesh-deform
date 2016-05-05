@@ -11,8 +11,6 @@
 #ifndef DEFORM_ARAP_H
 #define DEFORM_ARAP_H
 
-#include <deform/mesh.h>
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
@@ -20,21 +18,21 @@
 #include <vector>
 #include <unordered_map>
 
-#include <memory>
-
 namespace deform {
     
-    template<class MeshAdapter>
-    class AsRigidAsPossibleDeformation2 {
+    template<class T> class PrivateAccessor;
+    
+    template<class Mesh>
+    class AsRigidAsPossibleDeformation {
     public:
-        typedef typename MeshAdapter::Scalar Scalar;
+        typedef typename Mesh::Scalar Scalar;
         typedef int Index;
         typedef typename Eigen::Matrix<Scalar, 3, 1> Point;
         
-        AsRigidAsPossibleDeformation2(const MeshAdapter &mesh)
-            : _mesh(mesh), _dirty(false)
+        AsRigidAsPossibleDeformation(Mesh &mesh)
+            : _mesh(mesh), _dirty(true)
         {
-            setupMeshTopology();
+            initializeMeshTopology();
         }
         
         void setConstraint(Index vidx, Eigen::Ref<const Point> loc) {
@@ -44,13 +42,15 @@ namespace deform {
         
         bool deform(Index numberOfIterations) {
             if (_dirty) {
-                _pprime = _mesh.vertices();
-                _p = _pprime;
                 
+                initializeMeshGeometry();
                 computeCotanWeights();
                 initializeRotations();
                 initializeFreeVariableMapping();
                 initializeConstraints();
+                
+                if (_numberOfFreeVariables == _mesh.numberOfVertices())
+                    return true;
                 
                 if (!setupLinearSystem())
                     return false;
@@ -66,6 +66,12 @@ namespace deform {
                 // Estimate positions
                 estimatePositions();
             }
+            
+            // Update vertex locations at mesh
+            
+            for (Index i = 0; i < _mesh.numberOfVertices(); ++i) {
+                _mesh.vertexLocation(i, _pprime.col(i));
+            }
 
             return true;
         }
@@ -75,10 +81,22 @@ namespace deform {
         }
         
     private:
+        template<class> friend class PrivateAccessor;
         
-        void setupMeshTopology() {
+        void initializeMeshTopology() {
             
-            _faces = _mesh.faces();
+            _faces.resize(3, _mesh.numberOfFaces());
+            for (Index f = 0; f < _mesh.numberOfFaces(); ++f) {
+                _faces.col(f) = _mesh.face(f);
+            }
+        }
+        
+        void initializeMeshGeometry() {
+            _p.resize(3, _mesh.numberOfVertices());
+            for (Index v = 0; v < _mesh.numberOfVertices(); ++v) {
+                _p.col(v) = _mesh.vertexLocation(v);
+            }
+            _pprime = _p;
         }
         
         void computeCotanWeights() {
@@ -95,6 +113,7 @@ namespace deform {
                 auto v0 = _p.col(vids(0));
                 auto v1 = _p.col(vids(1));
                 auto v2 = _p.col(vids(2));
+                
                 
                 const Scalar l0 = (v1 - v0).norm();
                 const Scalar l1 = (v2 - v1).norm();
@@ -285,7 +304,7 @@ namespace deform {
         typedef Eigen::Matrix<Scalar, 3, 3> RotationMatrix;
         typedef Eigen::SparseMatrix<Scalar, Eigen::RowMajor> SparseMatrix;
         
-        const MeshAdapter &_mesh;
+        Mesh &_mesh;
         Eigen::Matrix<Scalar, 3, Eigen::Dynamic> _p, _pprime;
         Eigen::Matrix<Index, 3, Eigen::Dynamic> _faces;
         SparseMatrix _edgeWeights;
@@ -301,41 +320,10 @@ namespace deform {
         typedef Eigen::SparseMatrix<Scalar> LMatrixType;
         LMatrixType _L;
         
-        
         Eigen::Matrix<Scalar, 3, Eigen::Dynamic> _bFixed, _b;
         Eigen::SimplicialLDLT<LMatrixType> _solver;
         
     };
-    
-    
-    class AsRigidAsPossibleDeformation {
-    public:
-        AsRigidAsPossibleDeformation(Mesh * mesh);
-        ~AsRigidAsPossibleDeformation();
-        AsRigidAsPossibleDeformation(const AsRigidAsPossibleDeformation &other) = delete;
-        AsRigidAsPossibleDeformation &operator=(const AsRigidAsPossibleDeformation &other) = delete;
-
-        void setConstraint(Mesh::VertexHandle v, const Mesh::Point &pos);
-        void deform(size_t nIterations);
-
-    private:
-        void restorePositions();
-        void attachMeshProperties();
-        void releaseMeshProperties();
-
-        void setupFreeVariableMap();
-        void estimateRotations();
-        void estimatePositions();
-        void prepareLinearSystem();
-
-
-
-
-
-        struct data;
-        std::unique_ptr<data> _data;
-    };
-
 }
 
 #endif

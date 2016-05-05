@@ -11,45 +11,45 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
-#include <deform/mesh.h>
-#include <deform/cotan_matrix.h>
 #include <deform/arap.h>
+#include <deform/openmesh_adapter.h>
+#include <iostream>
 
-TEST_CASE("test_cotanmatrix")
+#include "accessor.h"
+
+TEST_CASE("cotan_weights")
 {
-    deform::Mesh m;
+    typedef OpenMesh::TriMesh_ArrayKernelT<> Mesh;
     
+    Mesh m;
     
+    m.add_vertex(Mesh::Point(0.f,0.f,0.f));
+    m.add_vertex(Mesh::Point(1.f,0.f,0.f));
+    m.add_vertex(Mesh::Point(1.f,1.f,0.f));
+    m.add_vertex(Mesh::Point(0.f,1.f,0.f));
     
-    m.add_vertex(deform::Mesh::Point(0.f,0.f,0.f));
-    m.add_vertex(deform::Mesh::Point(1.f,0.f,0.f));
-    m.add_vertex(deform::Mesh::Point(1.f,1.f,0.f));
-    m.add_vertex(deform::Mesh::Point(0.f,1.f,0.f));
+    m.add_face(Mesh::VertexHandle(0), Mesh::VertexHandle(1), Mesh::VertexHandle(2));
+    m.add_face(Mesh::VertexHandle(0), Mesh::VertexHandle(2), Mesh::VertexHandle(3));
     
-    m.add_face(deform::Mesh::VertexHandle(0), deform::Mesh::VertexHandle(1), deform::Mesh::VertexHandle(2));
-    m.add_face(deform::Mesh::VertexHandle(0), deform::Mesh::VertexHandle(2), deform::Mesh::VertexHandle(3));
+    typedef deform::AsRigidAsPossibleDeformation< deform::OpenMeshAdapter<> > ARAP;
     
+    deform::OpenMeshAdapter<> adapter(m);
     
-    OpenMesh::EPropHandleT<double> w;
-    m.add_property(w);
-    deform::cotanWeights(m, w);
+    ARAP arap(adapter);
+    arap.deform(0);
     
-    Eigen::SparseMatrix<double> C;
-    deform::cotanMatrix(m, w, C);
+    Eigen::MatrixXf sp = deform::PrivateAccessor<ARAP>::cotanWeights(arap);
     
-    Eigen::Matrix4f is = C;
+    REQUIRE(sp.rows() == 4);
+    REQUIRE(sp.cols() == 4);
+    
     Eigen::Matrix4f expected;
-    expected << 1.f, -0.5f, 0.f, -0.5f,
-                -0.5f, 1.f, -0.5f, 0.f,
-                0.f, -0.5f, 1.f, -0.5f,
-                -0.5f, 0.f, -0.5f, 1.f;
+    expected <<
+    0.f, 0.5f, 0.f, 0.5f,
+    0.5f, 0.f, 0.5f, 0.f,
+    0.f, 0.5f, 0.f, 0.5f,
+    0.5f, 0.f, 0.5f, 0.f;
     
-    REQUIRE(is.isApprox(expected, 1e-4f));
-    
-    
-    deform::OpenMeshAdapter ma(m);
-    deform::AsRigidAsPossibleDeformation2<deform::OpenMeshAdapter> arap(ma);
-    arap.setConstraint(0, Eigen::Vector3f(0,0,0));
-    arap.deform(1);
+    REQUIRE(sp.isApprox(expected, 1e-4f));
 }
     
