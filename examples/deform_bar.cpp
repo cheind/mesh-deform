@@ -78,17 +78,19 @@ int main(int argc, char **argv) {
     Eigen::Quaternionf end(Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()));
     
     // Create an OSG viewer to visualize incremental deformation.
+    float inc = 0.01;
+    float t = 0.f;
     deform::example::OSGViewer viewer(argc, argv, mesh, [&](Mesh &mesh, double time) {
         
-        float t = (float)(time / 10.0);
+        t+= inc;
         if (t > 1.f)
             return false;
-        
+
         Eigen::Matrix3f r = slerpRotation(start, end, t);
         applyRotationToHandles(r * prev.transpose(), mesh, arap);
         prev = r;
         
-        arap.deform(100);
+        arap.deform(20);
         
         return true;
     });
