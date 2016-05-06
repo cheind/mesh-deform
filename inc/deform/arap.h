@@ -17,32 +17,91 @@
 #include <Eigen/SVD>
 #include <vector>
 #include <unordered_map>
-#include <iostream>
 
 namespace deform {
     
+    /**
+        Forward declaration of a class that has access to internals of AsRigidAsPossibleDeformation.
+        Used during tests.
+    */
     template<class T> class PrivateAccessor;
     
-    template<class Mesh>
+    /**
+        As-rigid-as-possible (ARAP) surface deformation.
+     
+        Based on
+        Sorkine, Olga, and Marc Alexa. "As-rigid-as-possible surface modeling." 
+        Symposium on Geometry processing. Vol. 4. 2007.
+     
+        This class is an implementation of the algorithm outlined in paper "As-rigid-as-possible surface modeling". It
+        takes a triangular mesh and a sparse set of anchored target vertex positions. The algorithm then optimizes
+        the remaining vertex positions in such a way that local rigidity is conserved and target positions are reached.
+     
+        The implementation is mesh surface representation agnostic. In order to use it with a custom mesh type, you need to specify 
+        a mesh (adapter) that provides a minimalistic set of mesh accessors. See examples for such adapters.
+     
+        \note By default the precision used in floating point computations is the same as the precision of the vertex locations.
+              In case you observe simulation artefacts after running the simulation for some time, you might want to instruct
+              AsRigidAsPossibleDeformation to use higher precision floating point type using the PrecisionType
+              template argument.
+    */
+    template<class MeshType, class PrecisionType = typename MeshType::Scalar>
     class AsRigidAsPossibleDeformation {
     public:
-        typedef typename Mesh::Scalar Scalar;
-        typedef int Index;
-        typedef typename Eigen::Matrix<Scalar, 3, 1> Point;
+        /** Floating point precision used in calculations. */
+        typedef PrecisionType Scalar;
         
+        /** Mesh type we are working on. */
+        typedef MeshType Mesh;
+        
+        /** Type for indices */
+        typedef int Index;
+        
+        /**
+            Construct from mesh. 
+            
+            \param mesh Mutable reference to mesh. Mesh needs to outlive this object.
+        */
         AsRigidAsPossibleDeformation(Mesh &mesh)
             : _mesh(mesh), _dirty(true)
         {
             initializeMeshTopology();
         }
         
-        void setConstraint(Index vidx, Eigen::Ref<const Point> loc) {
-            _constrainedLocations[vidx] = loc;
+        /**
+            Set positional constrains for a specific vertex.
+         
+            Constraining a vertex to a specific location provides boundary conditions
+            for the optimization.
+            
+            \param vidx Index of vertex to constrain.
+            \param loc Location to pin vertex at.
+        */
+        template<class S>
+        void setConstraint(Index vidx, const Eigen::Matrix<S, 3, 1 > &loc) {
+            _constrainedLocations[vidx] = loc.template cast<Scalar>();
             _dirty = true;
         }
         
+        /**
+            Run the deformation optimization for a given number of iterations.
+         
+            The initial guess for the optimization is provided by the current vertex positions. 
+            Since the objective function is not convex, the constrained locations
+            should not be too far apart from this initial guess. Usually 2-5 iterations suffice 
+            when the initial guess is good.
+         
+            The mesh topology is not supposed to change during successive calls of deform.
+         
+            \param numberOfIterations Number of iterations to perform.
+            \returns Indication of success.
+        */
+         
         bool deform(Index numberOfIterations) {
             if (_dirty) {
+                
+                // Do all the initialization that only needs to be done
+                // once for the mesh.
                 
                 initializeMeshGeometry();
                 computeCotanWeights();
@@ -68,22 +127,24 @@ namespace deform {
                 estimatePositions();
             }
             
-            // Update vertex locations at mesh
+            // Back propagate updated vertex positions.
             
             for (Index i = 0; i < _mesh.numberOfVertices(); ++i) {
-                _mesh.vertexLocation(i, _pprime.col(i));
+                _mesh.vertexLocation(i, _pprime.col(i).template cast<typename Mesh::Scalar>());
             }
 
             return true;
         }
         
-        const Eigen::Matrix<Scalar, 3, Eigen::Dynamic> &updatedPositions() const {
-            return _pprime;
-        }
-        
     private:
         template<class> friend class PrivateAccessor;
         
+        
+        /**
+            Initialize the mesh topology.
+            
+            Done at construction of this object.
+        */
         void initializeMeshTopology() {
             
             _faces.resize(3, _mesh.numberOfFaces());
@@ -92,16 +153,32 @@ namespace deform {
             }
         }
         
+        /**
+            Initialize mesh geometry
+         
+            Copies vertices and initializes target positions.
+        */
         void initializeMeshGeometry() {
             _p.resize(3, _mesh.numberOfVertices());
             for (Index v = 0; v < _mesh.numberOfVertices(); ++v) {
-                _p.col(v) = _mesh.vertexLocation(v);
+                _p.col(v) = _mesh.vertexLocation(v).template cast<Scalar>();
             }
             _pprime = _p;
         }
         
+        /**
+            Compute cotan edge weights.
+         
+            Formulae taken from
+            Jacobson, Alec, and Olga Sorkine. "A cotangent Laplacian for images as surfaces." 
+            ACM Trans. Graph 25.3 (2012): 646-653.
+         
+            The formulae are robustified by handling edge cases such as degenerate triangles. 
+            Note that the sparse matrix created by this method also defines the edge connections
+            of vertices. This fact is used elsewhere in this algorithm to iterate over neighboring
+            vertices.
+        */
         void computeCotanWeights() {
-            // Based on https://igl.ethz.ch/projects/bbw/a-cotangent-laplacian-for-images-as-surfaces-2012-jacobson-sorkine.pdf
             
             typedef Eigen::Triplet<Scalar> T;
             std::vector<T> triplets;
@@ -156,11 +233,26 @@ namespace deform {
             _edgeWeights.setFromTriplets(triplets.begin(), triplets.end());
         }
         
+        /**
+            Initializes the rotations per vertex.
+         
+            All rotations are set to identity.
+        */
         void initializeRotations() {
             _rotations.clear();
             _rotations.resize(_mesh.numberOfVertices(), RotationMatrix::Identity());
         }
         
+        /**
+            Initialize the free variable mapping.
+         
+            In order to use Cholesky decomposition we need to ensure a symmetric matrix.
+            For the sparse matrix L we will only generate a row per free (unconstrained)
+            vertex. All constrained vertices are moved to the right hand side of the 
+            linear system of equations Lp'=b
+         
+            This method builds a map from vertex index to free variable index.
+        */
         void initializeFreeVariableMapping() {
             
             _freeIdxMap.resize(_mesh.numberOfVertices());
@@ -174,12 +266,24 @@ namespace deform {
             _numberOfFreeVariables = freeIdx;
         }
         
+        /**
+            Initialize geometric constraints.
+        */
         void initializeConstraints() {
             for (auto i = _constrainedLocations.begin(); i != _constrainedLocations.end(); ++i) {
                 _pprime.col(i->first) = i->second;
             }
         }
         
+        /**
+            Setup the linear system of equations.
+         
+            As argued in the paper, the matrix L can be prefactored for every call to deform. 
+            This methods builds L only over the unconstrained vertices and moves all references
+            to constrained vertex positions (i.e known variables) to the right hand side.
+         
+            \returns Indication of success.
+        */
         bool setupLinearSystem() {
             
             _L.resize(_numberOfFreeVariables, _numberOfFreeVariables);
@@ -230,6 +334,18 @@ namespace deform {
             return _solver.info() == Eigen::Success;
         }
         
+        /**
+            Estimate best matching rotations for each cell.
+         
+            This method estimates the best matching rotation matrix between a cell made of
+            original vertex positions and a cell consisting of optimized positions.
+         
+            Rotation estimation for known correspondences is a closed form step based on SVD
+            decomposition of a weighted covariance matrix. 
+         
+            Based on the flip-flop optimization scheme presented in the paper, this step
+            assumes the optimized positions to be known and solves only for the rotations.
+        */
         void estimateRotations() {
             
             // Use the structure of the edge sparse matrix to traverse mesh topology.
@@ -262,6 +378,13 @@ namespace deform {
             }
         }
         
+        /**
+            Optimize vertex locations.
+         
+            Assumes that the rotations are known and solves for the unknown positions.
+            Note that the right hand side is not initialized to zero but to a constant 
+            vector stemming from erased constrained variables from the left hand side.
+        */
         void estimatePositions() {
             
             _b = _bFixed;
@@ -301,35 +424,39 @@ namespace deform {
             }
         }
         
+        /**
+            Sort an edge, turning making a pair of vertices into an undirected edge.
+        */
         std::pair<Index, Index> undirectedEdge(Index a, Index b) {
             if (a > b)
                 return std::pair<Index, Index>(b, a);
             else
                 return std::pair<Index, Index>(a, b);
         }
-                              
+        
+        typedef Eigen::Matrix<Scalar, 3, 1> Point;
         typedef std::unordered_map<Index, Point> MapIndexToPoint;
         typedef Eigen::Matrix<Scalar, 3, 3> RotationMatrix;
         typedef Eigen::SparseMatrix<Scalar, Eigen::RowMajor> SparseMatrix;
+        typedef Eigen::Matrix<Scalar, 3, Eigen::Dynamic> PointMatrix;
+        typedef Eigen::Matrix<Index, 3, Eigen::Dynamic> FaceMatrix;
+        typedef Eigen::SparseMatrix<Scalar> LSolverMatrix;
         
         Mesh &_mesh;
-        Eigen::Matrix<Scalar, 3, Eigen::Dynamic> _p, _pprime;
-        Eigen::Matrix<Index, 3, Eigen::Dynamic> _faces;
+        PointMatrix _p, _pprime;
+        FaceMatrix _faces;
         SparseMatrix _edgeWeights;
-        std::vector< Eigen::Matrix<Scalar, 3, 3> > _rotations;
+        std::vector<RotationMatrix> _rotations;
         
         Index _numberOfFreeVariables;
         std::vector<Index> _freeIdxMap;
-        
         MapIndexToPoint _constrainedLocations;
+        
+        LSolverMatrix _L;
+        PointMatrix _bFixed, _b;
+        Eigen::SimplicialLDLT<LSolverMatrix> _solver;
+        
         bool _dirty;
-        
-        
-        typedef Eigen::SparseMatrix<Scalar> LMatrixType;
-        LMatrixType _L;
-        
-        Eigen::Matrix<Scalar, 3, Eigen::Dynamic> _bFixed, _b;
-        Eigen::SimplicialLDLT<LMatrixType> _solver;
         
     };
 }
