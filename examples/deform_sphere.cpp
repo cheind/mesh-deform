@@ -13,6 +13,8 @@
  are unconstrained.
  */
 
+#define _USE_MATH_DEFINES
+
 // Include as-rigid-as-possible deformation algorithm
 #include <deform/arap.h>
 
