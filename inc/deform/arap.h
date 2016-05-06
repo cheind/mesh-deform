@@ -119,6 +119,9 @@ namespace deform {
                 _dirty = false;
             }
             
+            // Estimate positions
+            estimatePositions();
+            
             for (Index i = 0; i < numberOfIterations; ++i) {
                 
                 // Estimate rotations
@@ -209,9 +212,13 @@ namespace deform {
                 
                 const Scalar denom = Scalar(1.0) / (Scalar(4.0) * area);
                 
-                const Scalar cot0 = (-l0 * l0 + l1 * l1 + l2 * l2) * denom;
-                const Scalar cot1 = (l0 * l0 - l1 * l1 + l2 * l2) * denom;
-                const Scalar cot2 = (l0 * l0 + l1 * l1 - l2 * l2) * denom;
+                Scalar cot0 = (-l0 * l0 + l1 * l1 + l2 * l2) * denom;
+                Scalar cot1 = (l0 * l0 - l1 * l1 + l2 * l2) * denom;
+                Scalar cot2 = (l0 * l0 + l1 * l1 - l2 * l2) * denom;
+                
+                cot0 = std::max<Scalar>(Scalar(1e-8), cot0);
+                cot1 = std::max<Scalar>(Scalar(1e-8), cot1);
+                cot2 = std::max<Scalar>(Scalar(1e-8), cot2);
                 
                 std::pair<Index, Index> e0 = undirectedEdge(vids(0), vids(1));
                 std::pair<Index, Index> e1 = undirectedEdge(vids(1), vids(2));
