@@ -38,12 +38,18 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("examples")
 
 if (OPENSCENEGRAPH_FOUND)
-		set(OSG_COMMON_FILES examples/osg_viewer.h examples/osg_viewer.cpp)
-
+    set(OSG_COMMON_FILES examples/osg_viewer.h examples/osg_viewer.cpp)
     include_directories(${OPENSCENEGRAPH_INCLUDE_DIRS})
+
     add_executable(deform_sphere
         examples/deform_sphere.cpp
-				${OSG_COMMON_FILES}
+        ${OSG_COMMON_FILES}
     )
     target_link_libraries(deform_sphere deform ${DEFORM_LINK_TARGETS} ${OPENSCENEGRAPH_LIBRARIES})
+
+    add_executable(deform_bar
+        examples/deform_bar.cpp
+        ${OSG_COMMON_FILES}
+    )
+    target_link_libraries(deform_bar deform ${DEFORM_LINK_TARGETS} ${OPENSCENEGRAPH_LIBRARIES})
 endif()
