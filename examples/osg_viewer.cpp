@@ -149,7 +149,7 @@ namespace deform {
 
             osg::StateSet* state = geode->getOrCreateStateSet();
             osg::ShadeModel* sm = new osg::ShadeModel();
-            sm->setMode(osg::ShadeModel::FLAT);
+            sm->setMode(osg::ShadeModel::SMOOTH);
             state->setAttributeAndModes(sm, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
             geode->setStateSet(state);
                         
