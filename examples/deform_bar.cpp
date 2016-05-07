@@ -80,7 +80,8 @@ int main(int argc, char **argv) {
     // Create an OSG viewer to visualize incremental deformation.
     float inc = 0.001;
     float t = 0.f;
-    deform::example::OSGViewer viewer(argc, argv, mesh, [&](Mesh &mesh, double time) {
+    deform::example::OSGViewer viewer(mesh, anchors, handles);
+    viewer.onFrame([&](Mesh &mesh, double time) {
         
         t+= inc;
         if (t > 1.f)

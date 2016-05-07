@@ -67,7 +67,8 @@ int main(int argc, char **argv) {
     double add = 0.01;
     
     // Create an OSG viewer to visualize incremental deformation.
-    deform::example::OSGViewer viewer(argc, argv, mesh, [&p, &pi, &add, &arap](Mesh &mesh, double time) {
+    deform::example::OSGViewer viewer(mesh, {37}, {32});
+    viewer.onFrame([&p, &pi, &add, &arap](Mesh &mesh, double time) {
         
         // Update motion
         

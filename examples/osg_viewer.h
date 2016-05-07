@@ -24,16 +24,19 @@ namespace deform {
             
             typedef std::function<bool(Mesh&, double)> DeformCallback;
             
-            OSGViewer(int argc, char **argv, Mesh &mesh, DeformCallback dc);
+            OSGViewer(Mesh &mesh);
+            OSGViewer(Mesh &mesh, const std::vector<int> &anchors, const std::vector<int> &handles);
             OSGViewer(const OSGViewer &other) = delete;
             OSGViewer &operator=(const OSGViewer &other) = delete;
             ~OSGViewer();
+            
+            void onFrame(DeformCallback dc);
             
             void run();
             
         private:
             
-            void setupScene();
+            void setupScene(const std::vector<int> &anchors, const std::vector<int> &handles);
             
             struct data;
             std::unique_ptr<data> _data;
