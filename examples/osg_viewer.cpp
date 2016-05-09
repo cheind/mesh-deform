@@ -135,7 +135,7 @@ namespace deform {
             
             
             osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
-            colors->push_back(osg::Vec4(0.9, 0.9, 0.9, 1));
+            colors->push_back(osg::Vec4(1.0, 1.0, 1.0, 1));
             colors->push_back(osg::Vec4(1.0, 0.0, 0.0, 1));
             colors->push_back(osg::Vec4(0.0, 1.0, 0.0, 1));
             
@@ -201,8 +201,9 @@ namespace deform {
             
             osg::ref_ptr<osg::Material> mat = new osg::Material;
             mat->setColorMode(osg::Material::ColorMode::DIFFUSE);
-            mat->setSpecular(osg::Material::FRONT, osg::Vec4f(0.8f, 0.8f, 0.8f, 1.0f));
-            mat->setShininess(osg::Material::FRONT, 6.0f);
+            mat->setSpecular(osg::Material::FRONT, osg::Vec4f(0.3f, 0.3f, 0.3f, 1.0f));
+            mat->setShininess(osg::Material::FRONT, 1.0f);
+            mat->setEmission(osg::Material::FRONT, osg::Vec4f(0.0f, 0.0f, 0.0f, 1.0f));
             state->setAttributeAndModes(mat, osg::StateAttribute::ON );
             
             state->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
