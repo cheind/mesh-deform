@@ -75,10 +75,10 @@ int main(int argc, char **argv) {
     // Motion related variables
     Eigen::Matrix3f prev = Eigen::Matrix3f::Identity();
     Eigen::Quaternionf start(Eigen::AngleAxisf(0, Eigen::Vector3f::UnitX()));
-    Eigen::Quaternionf end(Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()));
+    Eigen::Quaternionf end(Eigen::AngleAxisf(static_cast<float>(M_PI), Eigen::Vector3f::UnitX()));
     
     // Create an OSG viewer to visualize incremental deformation.
-    float inc = 0.001;
+    float inc = 0.001f;
     float t = 0.f;
     deform::example::OSGViewer viewer(mesh, anchors, handles);
     viewer.onFrame([&](Mesh &mesh, double time) {
