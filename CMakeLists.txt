@@ -22,6 +22,7 @@ list(APPEND DEFORM_LINK_TARGETS ${OPENMESH_LIBRARIES})
 add_library(deform
     inc/deform/arap.h
     inc/deform/openmesh_adapter.h
+    src/unused.cpp
 )
 set_target_properties(deform PROPERTIES LINKER_LANGUAGE CXX)
 
