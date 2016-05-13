@@ -12,16 +12,18 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(DEFORM_LINK_TARGETS)
 
-set(EIGEN_INCLUDE_DIR "../eigen" CACHE PATH "Where is the include directory of Eigen located")
-find_package(OpenMesh REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(OpenMesh QUIET)
 find_package(OpenSceneGraph QUIET COMPONENTS osgViewer osgFX osgGA)
+find_package(Sophus QUIET)
 
-include_directories("inc" ${OPENMESH_INCLUDE_DIR} ${EIGEN_INCLUDE_DIR})
+include_directories("inc" ${OPENMESH_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR} ${SOPHUS_INCLUDE_DIR})
 list(APPEND DEFORM_LINK_TARGETS ${OPENMESH_LIBRARIES})
 
 add_library(deform
     inc/deform/arap.h
     inc/deform/openmesh_adapter.h
+    inc/deform/trajectory.h
     src/unused.cpp
 )
 set_target_properties(deform PROPERTIES LINKER_LANGUAGE CXX)
@@ -30,6 +32,7 @@ add_executable(deform_tests
     tests/catch.hpp
     tests/accessor.h
     tests/test_cotan.cpp
+    tests/test_trajectory.cpp
 )
 target_link_libraries(deform_tests deform ${DEFORM_LINK_TARGETS})
 
