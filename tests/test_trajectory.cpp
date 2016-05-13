@@ -39,9 +39,8 @@ TEST_CASE("trajectory")
 
     // time 4
     trans = trans * Eigen::Translation3f(0, 0, 1) * Eigen::AngleAxisf(M_PI / 4, Eigen::Vector3f::UnitX());
-    std::cout << "Trans" << trans.matrix() << std::endl;
+    std::cout << "Expected transform" << std::endl << trans.matrix() << std::endl;
     path.addKeyframe(trans);
-
 
     // time 5
     trans *= Eigen::Translation3f(0, 0, 1);
@@ -59,21 +58,8 @@ TEST_CASE("trajectory")
     trans *= Eigen::Translation3f(0, 0, 1);
     path.addKeyframe(trans);
 
-    /*
-    for (float time = 0.f; time <= 6; time += 0.5f) {
-        std::cout << time << std::endl;
-        std::cout << path(time).matrix() << std::endl;
-        std::cout << "---------------------" << std::endl;
-    }
-    */
-
-    //std::cout << path(3.5f).matrix() << std::endl;
 
     std::cout << "Transform is" << std::endl;
     std::cout << path(4.f).matrix() << std::endl;
-    //std::cout << path(4.5f).matrix() << std::endl;
-    //std::cout << path(5.0f).matrix() << std::endl;
-    
-    //REQUIRE(sp.isApprox(expected, 1e-4f));
 }
     

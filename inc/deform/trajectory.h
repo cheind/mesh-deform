@@ -27,9 +27,11 @@
 #pragma warning (pop)
 #endif
 
+#include <iostream>
+
 namespace deform {
     
-    template<class PrecisionType = typename MeshType::Scalar>
+    template<class PrecisionType>
     class TrajectorySE3 {
     public:
 
@@ -66,15 +68,13 @@ namespace deform {
                 Transform delta = _keyframes[n - 2].inverse(Eigen::Isometry) * _keyframes[n - 1];
                
                 SE3Group g(delta.matrix());
-                _omegas.push_back(g.log());
+                _omega.push_back(g.log());
 
                 if (n == 2) {
-                    Transform deltainv = delta.inverse(Eigen::Isometry);
-                    SE3Group g(deltainv.matrix());
-                    _omegas[0] = g.log();
+                    _omega[0] = g.inverse().log();
                 }
             } else {
-                _omegas.push_back(SE3Group::Tangent::Zero()); // Will be fixed when second keyframe is given.
+                _omega.push_back(SE3Group::Tangent::Zero()); // Will be fixed when second keyframe is given.
             }
         }
 
@@ -88,39 +88,41 @@ namespace deform {
 
             const Scalar u = s - Scalar(i);
             const Eigen::Matrix<Scalar, 4, 1> b = _C * Eigen::Matrix<Scalar, 4, 1>(Scalar(1), u, u*u, u*u*u);
-
+            
             Transform trans = previousTransform(i);
+            
+            Transform prod = Transform::Identity();
             for (int j = 1; j < 4; ++j) {
-                SE3Group::Tangent o = omega(i + j);
-                std::cout << "omega is " << o.transpose() << std::endl;
-                std::cout << "b is" << b(j) << std::endl;
-                std::cout << "omega * b is " << (b(j) * o).transpose() << std::endl;
-
-                trans = trans * SE3Group::exp(b(j) * o).affine3();
+                typename SE3Group::Tangent o = omega(i + j);
+                prod = prod * SE3Group::exp(b(j) * o).affine3();
             }
-
-            return trans;
+            
+            return trans * prod;
         }
         
     private:
 
         typename SE3Group::Tangent omega(int idx) const {
-            if ((size_t)idx < _omegas.size())
-                return _omegas[idx];
-            else
-                return _omegas.back();
+            if ((size_t)idx < _omega.size()) {
+                return _omega[idx];
+            } else {
+                // Extrapolate
+                return _omega.back();
+            }
         }
 
         Transform previousTransform(int idx) const {
-            if (idx == 0)
-                return SE3Group::exp(_omegas[0]).affine3() * _keyframes[0];
-            else
+            if (idx == 0) {
+                // Extrapolate
+                return SE3Group::exp(_omega[0]).affine3() * _keyframes[0];
+            } else {
                 return _keyframes[idx - 1];
+            }
         }
 
         Scalar _timeStep;
         std::vector<Transform, Eigen::aligned_allocator<Transform> > _keyframes;
-        std::vector<typename SE3Group::Tangent, Eigen::aligned_allocator<typename SE3Group::Tangent> > _omegas;
+        std::vector<typename SE3Group::Tangent, Eigen::aligned_allocator<typename SE3Group::Tangent> > _omega;
         Eigen::Matrix<Scalar, 4, 4> _C;
     };
 }
