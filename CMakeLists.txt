@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 project(mesh-deform)
 
 if (WIN32)
-		add_definitions("-D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS")
+		add_definitions("-D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_ITERATOR_DEBUG_LEVEL=0")
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
@@ -56,4 +56,13 @@ if (OPENSCENEGRAPH_FOUND)
         ${OSG_COMMON_FILES}
     )
     target_link_libraries(deform_bar deform ${DEFORM_LINK_TARGETS} ${OPENSCENEGRAPH_LIBRARIES})
+
+    if (SOPHUS_FOUND)
+        add_executable(deform_trajectory
+            examples/deform_trajectory.cpp
+            ${OSG_COMMON_FILES}
+        )
+        target_link_libraries(deform_trajectory deform ${DEFORM_LINK_TARGETS} ${OPENSCENEGRAPH_LIBRARIES})
+    endif ()
+
 endif()

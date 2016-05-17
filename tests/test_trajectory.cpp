@@ -19,47 +19,22 @@ TEST_CASE("trajectory")
     typedef deform::TrajectorySE3<float> Trajectory;
 
 
-    Trajectory path(1.f);
+    Trajectory path;
 
     // time 0
-    Trajectory::Transform trans = Trajectory::Transform::Identity();
-    path.addKeyframe(trans);
+    Trajectory::Transform pose0 = Trajectory::Transform::Identity();
+    path.addKeyPose(pose0);
 
-    // time 1
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
+    Trajectory::Transform pose1 = Eigen::Translation3f(0, 0, 1) * pose0;
+    path.addKeyPose(pose1);
 
-    // time 2
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
+    Trajectory::Transform pose2 = Eigen::Translation3f(0, 0, 1) * Eigen::AngleAxisf((float)M_PI / 4.f, Eigen::Vector3f::UnitX()) * pose1;
+    path.addKeyPose(pose2);
 
-    // time 3
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
+    Trajectory::Transform pose3 = Eigen::Translation3f(0, 0, 1) * pose2;
+    path.addKeyPose(pose3);
 
-    // time 4
-    trans = trans * Eigen::Translation3f(0, 0, 1) * Eigen::AngleAxisf(M_PI / 4, Eigen::Vector3f::UnitX());
-    std::cout << "Expected transform" << std::endl << trans.matrix() << std::endl;
-    path.addKeyframe(trans);
-
-    // time 5
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
-
-    // time 6
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
-
-    // time 7
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
-
-    // time 8
-    trans *= Eigen::Translation3f(0, 0, 1);
-    path.addKeyframe(trans);
-
-
-    std::cout << "Transform is" << std::endl;
-    std::cout << path(4.f).matrix() << std::endl;
+    REQUIRE(path(0.f).matrix().isApprox(pose0.matrix(), 1e-3f));
+    REQUIRE(path(1.f).matrix().isApprox(pose3.matrix(), 1e-3f));
 }
     

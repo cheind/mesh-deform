@@ -14,6 +14,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <Eigen/StdVector>
+#include <unsupported/Eigen/Splines>
 
 #ifdef _WIN32
 #pragma warning (push)
@@ -49,81 +50,37 @@ namespace deform {
         /**
             Construct empty trajectory
         */
-        TrajectorySE3(Scalar timeStep)
-            :_timeStep(timeStep)
-        {
-            _C << 
-                6, 0, 0, 0,
-                5, 3, -3, 1,
-                1, 3, 3, -2,
-                0, 0, 0, 1;
-            _C *= Scalar(1) / 6;
+        TrajectorySE3()
+            :_dirty(false)
+        {}
+
+        void addKeyPose(const Transform &transform) {
+            _transforms.push_back(transform);
+            _dirty = true;
         }
 
-        void addKeyframe(const Transform &transform) {
-            _keyframes.push_back(transform);
-            const size_t n = _keyframes.size();
-            
-            if (n > 1) {
-                Transform delta = _keyframes[n - 2].inverse(Eigen::Isometry) * _keyframes[n - 1];
-               
-                SE3Group g(delta.matrix());
-                _omega.push_back(g.log());
-
-                if (n == 2) {
-                    _omega[0] = g.inverse().log();
+        Transform operator()(Scalar time) {
+            if (_dirty) {
+                Eigen::Matrix<Scalar, 6, Eigen::Dynamic> points(6, _transforms.size());
+                for (size_t i = 0; i < _transforms.size(); ++i) {
+                    points.col(i) = SE3Group(_transforms[i].matrix()).log();
                 }
-            } else {
-                _omega.push_back(SE3Group::Tangent::Zero()); // Will be fixed when second keyframe is given.
-            }
-        }
+                _spline = Eigen::SplineFitting<SplineType>::Interpolate(points, 3);
+                _dirty = false;
+             }
 
-        Transform operator()(Scalar time) const {
-    
-            const Scalar t0(0);
-            const Scalar s = (time - t0) / _timeStep;
-            
-            const int i = static_cast<int>(std::floor(s));
-            eigen_assert(i >= 0);
-
-            const Scalar u = s - Scalar(i);
-            const Eigen::Matrix<Scalar, 4, 1> b = _C * Eigen::Matrix<Scalar, 4, 1>(Scalar(1), u, u*u, u*u*u);
-            
-            Transform trans = previousTransform(i);
-            
-            Transform prod = Transform::Identity();
-            for (int j = 1; j < 4; ++j) {
-                typename SE3Group::Tangent o = omega(i + j);
-                prod = prod * SE3Group::exp(b(j) * o).affine3();
-            }
-            
-            return trans * prod;
+            SE3Group::Tangent tangent = _spline(time);
+            return SE3Group::exp(tangent).affine3();
         }
         
     private:
+        typedef Eigen::Spline<Scalar, 6, 3> SplineType;
+        typedef std::vector<Transform, Eigen::aligned_allocator<Transform> > TransformVector;
+        
+        bool _dirty;
+        SplineType _spline;
 
-        typename SE3Group::Tangent omega(int idx) const {
-            if ((size_t)idx < _omega.size()) {
-                return _omega[idx];
-            } else {
-                // Extrapolate
-                return _omega.back();
-            }
-        }
-
-        Transform previousTransform(int idx) const {
-            if (idx == 0) {
-                // Extrapolate
-                return SE3Group::exp(_omega[0]).affine3() * _keyframes[0];
-            } else {
-                return _keyframes[idx - 1];
-            }
-        }
-
-        Scalar _timeStep;
-        std::vector<Transform, Eigen::aligned_allocator<Transform> > _keyframes;
-        std::vector<typename SE3Group::Tangent, Eigen::aligned_allocator<typename SE3Group::Tangent> > _omega;
-        Eigen::Matrix<Scalar, 4, 4> _C;
+        TransformVector _transforms;
     };
 }
 
