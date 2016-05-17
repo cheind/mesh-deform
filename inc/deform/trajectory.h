@@ -69,7 +69,7 @@ namespace deform {
                 _dirty = false;
              }
 
-            SE3Group::Tangent tangent = _spline(time);
+            typename SE3Group::Tangent tangent = _spline(time);
             return SE3Group::exp(tangent).affine3();
         }
         
