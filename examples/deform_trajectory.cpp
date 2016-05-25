@@ -18,6 +18,7 @@
 #include <deform/arap.h>
 #include <deform/openmesh_adapter.h>
 #include <deform/trajectory.h>
+#include <deform/deformation_util.h>
 
 #include "osg_viewer.h"
 #include "example_config.h"
@@ -38,15 +39,7 @@ typedef OpenMesh::TriMesh_ArrayKernelT<> Mesh;
 typedef deform::OpenMeshAdapter<> Adapter;
 typedef deform::AsRigidAsPossibleDeformation<Adapter, double> ARAP;
 typedef deform::TrajectorySE3<float> Trajectory;
-
-
-void applyTransformationToHandles(const Eigen::Affine3f &delta, Mesh &mesh, ARAP &arap) {
-    for (auto h : handles) {
-        Mesh::VertexHandle vh = mesh.vertex_handle(h);
-        Eigen::Vector3f v = delta * deform::convert::toEigen(mesh.point(vh));
-        arap.setConstraint(vh.idx(), v);
-    }
-}
+typedef deform::DeformationUtil<Adapter> DeformationUtil;
 
 
 int main(int argc, char **argv) {
@@ -70,22 +63,14 @@ int main(int argc, char **argv) {
     
     // Setup trajectory
     Trajectory trajectory;
-    /*
+    
     trajectory.addKeyPose(Trajectory::Transform::Identity());
     trajectory.addKeyPose(Trajectory::Transform::Identity() * Eigen::Translation3f(1.f,0.f,0.f));
     trajectory.addKeyPose(Trajectory::Transform::Identity() * Eigen::Translation3f(2.f, 0.f, 0.f));
     trajectory.addKeyPose(Trajectory::Transform::Identity() * Eigen::AngleAxisf((float)M_PI / 2.f, Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf((float)M_PI / 4.f, Eigen::Vector3f::UnitX()) * Eigen::Translation3f(2.f, 0.f, 0.f));
-    */
     
-    trajectory.addKeyPose(Trajectory::Transform::Identity());
-    trajectory.addKeyPose(Eigen::AngleAxisf((float)0.2f, Eigen::Vector3f::UnitY()) * Trajectory::Transform::Identity());
-    trajectory.addKeyPose(Eigen::AngleAxisf((float)0.4f, Eigen::Vector3f::UnitY()) * Trajectory::Transform::Identity());
-    trajectory.addKeyPose(Eigen::AngleAxisf((float)0.6f, Eigen::Vector3f::UnitY()) * Trajectory::Transform::Identity());
-    trajectory.addKeyPose(Eigen::AngleAxisf((float)1.57f, Eigen::Vector3f::UnitY()) * Trajectory::Transform::Identity());
     
-
-
-    Eigen::Affine3f prev = trajectory(0.f);
+    DeformationUtil dutil(ma, handles.begin(), handles.end(), trajectory(0.0));
     
     // Create an OSG viewer to visualize incremental deformation.
     double duration = 10.f;
@@ -98,11 +83,9 @@ int main(int argc, char **argv) {
         if (t > 1.f)
             return false;
         
-        Trajectory::Transform transform = trajectory((float)t);
-        applyTransformationToHandles(transform * prev.inverse(Eigen::Isometry), mesh, arap);
-        prev = transform;
+        dutil.updateConstraints(trajectory((float)t), arap);
         
-        arap.deform(40);
+        arap.deform(20);
         
         return true;
     });

@@ -28,8 +28,6 @@
 #pragma warning (pop)
 #endif
 
-#include <iostream>
-
 namespace deform {
     
     template<class PrecisionType>

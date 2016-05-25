@@ -24,6 +24,7 @@ add_library(deform
     inc/deform/arap.h
     inc/deform/openmesh_adapter.h
     inc/deform/trajectory.h
+    inc/deform/deformation_util.h
     src/unused.cpp
 )
 set_target_properties(deform PROPERTIES LINKER_LANGUAGE CXX)
