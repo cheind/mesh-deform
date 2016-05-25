@@ -8,8 +8,8 @@
  of the BSD license.See the LICENSE file for details.
  */
 
-#ifndef DEFORM_DEFORMATION_PATH_H
-#define DEFORM_DEFORMATION_PATH_H
+#ifndef DEFORM_DEFORMATION_UTIL_H
+#define DEFORM_DEFORMATION_UTIL_H
 
 #include <deform/trajectory.h>
 #include <deform/arap.h>
