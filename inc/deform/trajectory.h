@@ -28,8 +28,6 @@
 #pragma warning (pop)
 #endif
 
-#include <iostream>
-
 namespace deform {
     
     template<class PrecisionType>
@@ -54,9 +52,10 @@ namespace deform {
             :_dirty(false)
         {}
 
-        void addKeyPose(const Transform &transform) {
+        Transform addKeyPose(const Transform &transform) {
             _transforms.push_back(transform);
             _dirty = true;
+            return transform;
         }
 
         Transform operator()(Scalar time) {

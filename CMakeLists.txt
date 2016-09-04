@@ -24,6 +24,7 @@ target_sources(deform INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/inc/deform/arap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/inc/deform/openmesh_adapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/inc/deform/trajectory.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc/deform/deformation_util.h
 )
 
 add_executable(deform_tests
